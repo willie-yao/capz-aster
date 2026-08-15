@@ -1,0 +1,17 @@
+id: capi-e2e-provider-ownership
+name: CAPI E2E framework callsite versus CAPZ ownership
+description: |
+  CAPZ invokes reusable CAPI E2E specs, so failure stacks often end in the CAPI
+  Go module even when the provider-specific fix belongs in CAPZ.
+
+priority: 180
+
+triggers:
+  - '(?i)(?:/go/pkg/mod/)?sigs\.k8s\.io/cluster-api/test@[^/]+/(?:e2e|framework)/[^\s:]+'
+  - '(?i)sigs\.k8s\.io/cluster-api/test/(?:e2e|framework)/[^\s:]+'
+
+procedure: |
+  1. Treat the CAPI module stack frame as the reusable spec or framework callsite, not automatically as the component that owns the bug.
+  2. Identify the first provider-specific failure in CAPZ, ASO, Azure, bootstrap, or workload-cluster artifacts before choosing a source repository.
+  3. In CAPZ, trace the matching capi_e2e.*Spec invocation and provider callbacks in test/e2e/capi_test.go. Prefer a CAPZ integration hook, waiter, template, or controller fix when the failure depends on Azure or ASO behavior.
+  4. Recommend a CAPI source change only when the evidence proves provider-independent framework behavior or the same failure is reproduced across providers.

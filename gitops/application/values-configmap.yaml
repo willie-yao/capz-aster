@@ -15,9 +15,25 @@ data:
       fixRuntime:
         enabled: false
     ai:
-      enabled: false
+      api: chat_completions
+      contextWindowTokens: 250000
+      enabled: true
+      endpoint: https://api.githubcopilot.com/chat/completions
+      existingSecret: capz-aster-model
+      model: claude-sonnet-4.6
+      reasoningEffort: ""
+      tokenSecretKey: AI_TOKEN
+    analysisCache:
+      generation: capz-aster-v09rc1-sonnet46-20260815
     analysisRuntime:
       type: inprocess
+    fetcher:
+      buildsPerJob: 1
+      includePresubmits: false
+      reconcileInterval: 24h
+      timeout: 6h
+      watchInterval: 24h
+      workers: 2
     global:
       imageTag: v0.9.0-rc.1
     image:
@@ -63,74 +79,815 @@ data:
           source_repo:
             owner: kubernetes-sigs
             name: cluster-api-provider-azure
-      skills: {}
+    
+        ai:
+          api: chat_completions
+          endpoint: https://api.githubcopilot.com/chat/completions
+          model: claude-sonnet-4.6
+          cache_generation: capz-aster-v09rc1-sonnet46-20260815
+          usage:
+            pricing:
+              currency: USD
+              input_per_million: "3"
+              cached_input_per_million: "0.30"
+              output_per_million: "15"
+          concurrency: 2
+          timeout: 45m
+          max_iters: 11
+          min_tool_calls: 2
+          min_gcs_bytes: 5000000
+          critique:
+            max_retries: 1
+            cache_policy: hard
+          tools:
+            - filesystem
+            - k8s
+          source_repo:
+            owner: kubernetes-sigs
+            name: cluster-api-provider-azure
+          consumer_skills:
+            required: true
+            minimum_count: 13
+      skills:
+        aks-kubernetes-version-support.yaml: |
+          id: aks-kubernetes-version-support
+          name: AKS Kubernetes version support or LTS requirement
+          description: |
+            AKS cluster creation rejects the requested Kubernetes version because the
+            version is unsupported or requires a Long-Term Support plan. The provider
+            error determines whether the job must select a supported version or enable
+            the required support plan. Do not infer exact cloud CLI syntax or a source
+            edit location from the error alone.
+    
+          priority: 190
+    
+          triggers:
+            - '(?i)K8sVersionNotSupported'
+            - '(?i)(Kubernetes|K8s).{0,80}version.{0,80}(not supported|unsupported)'
+            - '(?i)(Long[- ]Term Support|\bLTS\b).{0,80}(required|support plan|not enabled|unsupported)'
+            - '(?i)(AKS|ManagedCluster).{0,120}(version|support plan).{0,80}(fail|error|unsupported|required)'
+    
+          required_evidence:
+            - id: aks-version-provider-error
+              description: Build log containing the exact AKS version or LTS rejection
+              any_of:
+                - 'build-log\.txt'
+                - '.*build-log\.txt'
+              content_any_of:
+                - '(?i)K8sVersionNotSupported'
+                - '(?i)(Kubernetes|K8s).{0,80}version.{0,80}(not supported|unsupported)'
+                - '(?i)(Long[- ]Term Support|\bLTS\b).{0,80}(required|support plan|not enabled)'
+    
+          procedure: |
+            1. Read the exact AKS provider error in build-log.txt. Quote the requested
+               Kubernetes version, the rejection code, and any supported-version or
+               support-plan detail returned by the provider.
+            2. Keep these remediation outcomes distinct:
+               - If the provider says the version is unsupported, select a version that
+                 the provider error or verified project configuration establishes as
+                 supported.
+               - If the provider explicitly requires Long-Term Support, either select a
+                 supported non-LTS version or enable the required support plan when the
+                 job is intentionally testing LTS. Do not claim that choosing another
+                 version and enabling LTS are the same fix.
+            3. Before naming a source file, use grep_repo or read_repo_file at the exact
+               tested commit. Put only a path that was actually read in relevant_files.
+               Put an unverified path or symbol in search_suggestions instead.
+            4. Do not provide an exact cloud-provider command or option name unless the
+               exact syntax appears in the build artifact, verified project source, or
+               another applicable consumer procedure. Otherwise describe the required
+               outcome, such as selecting a supported version or enabling the required
+               support plan through verified project automation.
+            5. Preserve the provider-backed root cause even when command syntax or the
+               source edit location is not grounded. The verification step is to rerun
+               the same job and confirm AKS accepts the requested version and plan.
+        aso-clusterctl-upgrade-conversion-webhook.yaml: |
+          id: aso-clusterctl-upgrade-conversion-webhook
+          name: ASO conversion webhook unavailable during clusterctl upgrade
+          description: |
+            clusterctl provider upgrade fails while listing an ASO resource after the
+            ASO conversion webhook deployment was scaled down.
+    
+          priority: 300
+    
+          triggers:
+            - '(?i)clusterctl\s+upgrade.*(?:ManagedClustersAgentPool|ManagedCluster|VirtualNetworks?Subnet|VirtualNetwork)'
+            - '(?i)(?:ManagedClustersAgentPool|ManagedCluster|VirtualNetworks?Subnet|VirtualNetwork).*client rate limiter Wait returned an error'
+            - '(?i)azureserviceoperator-webhook-service.*(?:connect(?:ion)? refused|conversion)'
+            - '(?i)storage is \(re\)initializing.*conversion webhook'
+    
+          required_evidence:
+            - id: clusterctl-upgrade-log
+              description: clusterctl upgrade log showing provider scale-down and the first failed discovery retry
+              any_of:
+                - '(?i)^artifacts/clusters/clusterctl-upgrade-management-[^/]+/clusterctl-upgrade\.log$'
+    
+          procedure: |
+            1. Read the clusterctl-upgrade.log for the failing management cluster. If the build has several upgrade clusters, compare the candidate logs and use the one whose ASO GVK and timestamp match the JUnit failure.
+            2. Trace the sequence in that log. The known failure is: clusterctl scales down the infrastructure-azure provider and azureserviceoperator-controller-manager, provider deletion or resource discovery lists an ASO GVK, then the Kubernetes API conversion call to azureserviceoperator-webhook-service is refused. Later client rate-limiter or context-deadline messages are terminal retry symptoms.
+            3. Do not classify this sequence as Azure ARM throttling unless an Azure activity log or response explicitly shows HTTP 429 or RateLimitExceeded. Listing an ASO custom resource and calling its conversion webhook are Kubernetes API operations.
+            4. A CAPI module frame such as sigs.k8s.io/cluster-api/test/framework/clusterctl/client.go is the generic upgrade caller. For CAPZ, inspect the provider-owned PreUpgrade wiring in test/e2e/capi_test.go and the reusable ASO CRD labeling logic in internal/asomigration/labels.go.
+            5. The remediation is to label ASO-managed CRDs with cluster.x-k8s.io/provider=infrastructure-azure before clusterctl scales providers down, or preserve the equivalent provider-owned pre-upgrade hook. Increasing timeouts, QPS, retries, or test reruns does not correct the ordering bug.
+            6. If the tested revision already contains the labeling helper, confirm that the PreUpgrade hook ran and that every ASO-managed CRD had the provider label before treating the failure as the same bug.
+        azure-quota-or-sku.yaml: |
+          id: azure-quota-or-sku
+          name: Azure quota / SKU availability failure
+          description: |
+            Azure-side capacity or SKU issue: QuotaExceeded, SkuNotAvailable,
+            OperationNotAllowed, AllocationFailed. These are real failures
+            (not flakes) and they leave a clean trail in the AzureMachine
+            failureMessage and the azure-activity-log.
+    
+          priority: 160
+    
+          triggers:
+            - "(?i)QuotaExceeded|OperationNotAllowed"
+            - "(?i)SkuNotAvailable"
+            - "(?i)AllocationFailed"
+            - "(?i)not\\s+available\\s+in\\s+(location|region|zone)"
+    
+          required_evidence:
+            - id: azuremachine-or-pool-yaml
+              description: AzureMachine or AzureMachinePool YAML with status.failureMessage
+              any_of:
+                - "artifacts/clusters/.*/AzureMachine(Pool|Template)?/.*\\.ya?ml"
+            - id: azure-activity-log
+              description: Azure activity log for the cluster
+              any_of:
+                - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+    
+          procedure: |
+            1. Read the AzureMachine(Pool) YAML for the failing resource.
+               status.failureMessage usually contains the exact Azure error
+               code + the resource (vm-size, zone, region).
+            2. Read azure-activity-logs/<cluster>.log filtered for the
+               resource. The activity log shows the precise quota or sku
+               constraint hit, with the requested quantity vs the limit.
+            3. Determine whether the suggested fix is:
+               - Request a quota increase (cite the exact metric).
+               - Pick a different SKU / region in the cluster template.
+               - Retry: but only if the error is documented as transient
+                 (e.g. transient AllocationFailed). Most are not.
+            4. Cite the AzureMachine failureMessage verbatim in root_cause.
+        capi-e2e-provider-ownership.yaml: |
+          id: capi-e2e-provider-ownership
+          name: CAPI E2E framework callsite versus CAPZ ownership
+          description: |
+            CAPZ invokes reusable CAPI E2E specs, so failure stacks often end in the CAPI
+            Go module even when the provider-specific fix belongs in CAPZ.
+    
+          priority: 180
+    
+          triggers:
+            - '(?i)(?:/go/pkg/mod/)?sigs\.k8s\.io/cluster-api/test@[^/]+/(?:e2e|framework)/[^\s:]+'
+            - '(?i)sigs\.k8s\.io/cluster-api/test/(?:e2e|framework)/[^\s:]+'
+    
+          procedure: |
+            1. Treat the CAPI module stack frame as the reusable spec or framework callsite, not automatically as the component that owns the bug.
+            2. Identify the first provider-specific failure in CAPZ, ASO, Azure, bootstrap, or workload-cluster artifacts before choosing a source repository.
+            3. In CAPZ, trace the matching capi_e2e.*Spec invocation and provider callbacks in test/e2e/capi_test.go. Prefer a CAPZ integration hook, waiter, template, or controller fix when the failure depends on Azure or ASO behavior.
+            4. Recommend a CAPI source change only when the evidence proves provider-independent framework behavior or the same failure is reproduced across providers.
+        cluster-cleanup-stuck.yaml: |
+          id: cluster-cleanup-stuck
+          name: Cluster deletion / cleanup stuck on finalizers
+          description: |
+            Cluster or workload-cluster resource fails to delete cleanly.
+            Usually a finalizer is stuck because an underlying Azure resource
+            failed to delete (network with running NICs, role assignment
+            referencing a missing principal, etc.). Diagnostic path is the
+            resource YAML + the capz-controller-manager log for the cleanup
+            reconcile.
+    
+          priority: 80
+    
+          triggers:
+            - "(?i)deletion.*timestamp.*\\d"
+            - "(?i)finalizer.*(stuck|blocking|held)"
+            - "(?i)cleanup.*(timeout|fail|hang)"
+    
+          required_evidence:
+            - id: stuck-resource-yaml
+              description: YAML of the resource with deletionTimestamp + finalizers
+              any_of:
+                - "artifacts/clusters/.*/(Cluster|Azure[A-Z][a-zA-Z]+)/.*\\.ya?ml"
+            - id: capz-controller-log
+              description: capz-controller-manager log for the deletion reconcile
+              any_of:
+                - "capz-system/capz-controller-manager.*/manager\\.log"
+    
+          procedure: |
+            1. Identify the resource(s) stuck deleting from build-log.txt and
+               read their YAML. Note metadata.finalizers, metadata.deletionTimestamp,
+               and status conditions.
+            2. Read the capz-controller-manager log filtered for the stuck
+               resource name. Look for the cleanup reconcile retrying with a
+               specific Azure API error (e.g. "Subnet ... cannot be deleted
+               because it has resources").
+            3. Identify the blocking Azure resource (NIC, NSG, role
+               assignment, public IP) and cite it.
+            4. The suggested_fix should name the upstream resource that must
+               be deleted first OR the missing finalizer-removal in the
+               controller code (rare; usually it's a CAPZ-side bug).
+        conformance-flake-vs-real.yaml: |
+          id: conformance-flake-vs-real
+          name: Conformance test failure (flake vs real bug)
+          description: |
+            Conformance suite reports one or more failed specs. Most CAPZ
+            conformance reds are infra flakes (load-balancer eventual
+            consistency, slow image pulls) but real bugs hide here too.
+            Disambiguation is mechanical: check if the same spec failed in
+            recent builds and check the test's own logs.
+    
+          priority: 90
+    
+          triggers:
+            - "(?i)\\[(Conformance|sig-[a-z-]+)\\]"
+            - "(?i)kubetest.*(failed|red|failing|panic)"
+            - "(?i)conformance\\s+(suite|tests?)\\s+.*\\b(failed|red|failures?|broken)\\b"
+            - "(?i)\\d+\\s+conformance\\s+tests?\\s+(failed|red)"
+    
+          required_evidence:
+            - id: junit-xml
+              description: Conformance suite junit output
+              any_of:
+                - "artifacts/.*/junit.*\\.xml"
+                - ".*conformance.*junit.*\\.xml"
+            - id: e2e-namespace-events
+              description: Workload-cluster test namespace events or pod logs
+              any_of:
+                - "artifacts/clusters/.*/(e2e|conformance|sonobuoy).*/.*"
+    
+          procedure: |
+            1. Read the junit XML to enumerate failing test names + the
+               captured failure message for each. Do NOT summarize at the
+               "5 tests failed" level: pick a representative failure with
+               a non-empty message.
+            2. Inspect the failure stack / message. If it contains "timed
+               out waiting", check whether the underlying resource appears in
+               the workload-cluster events / pod logs.
+            3. Compare against well-known CAPZ conformance flake patterns:
+               - LoadBalancer service eventual provisioning lag
+               - Slow image pull on first scheduling
+               - Network policy propagation lag
+            4. Conclude EITHER: (a) the failure is a known flake pattern and
+               the recommendation is to monitor / re-run, OR (b) it is a real
+               bug: name the component + cite the specific log evidence.
+               Do not punt to "investigate the failing tests".
+        controller-deployment-stuck.yaml: |
+          id: controller-deployment-stuck
+          name: Controller deployment not ready / pods CrashLoopBackOff
+          description: |
+            A CAPI / CAPZ / ASO controller Deployment fails to become Ready
+            during bootstrap. Usually one pod is CrashLoopBackOff or
+            ImagePullBackOff, OR the deployment is Stuck=true with no available
+            replicas. The fix lives in the failing pod's manager.log, not in
+            the upstream Cluster API status.
+    
+          priority: 140
+    
+          triggers:
+            - "(?i)(CrashLoopBackOff|ImagePullBackOff|ErrImagePull)"
+            - "(?i)deployment.*(not\\s+ready|stuck|0/[12]\\s+replicas)"
+            - "(?i)controller-manager.*(restart|backoff|crash)"
+    
+          required_evidence:
+            - id: controller-pod-log
+              description: manager.log from the failing controller pod
+              any_of:
+                - "(capi-system|capi-kubeadm-bootstrap-system|capi-kubeadm-control-plane-system|capz-system)/.*/manager\\.log"
+            - id: deployment-or-pod-yaml
+              description: Deployment / Pod YAML showing the failure state
+              any_of:
+                - "(capi-system|capz-system).*deployment.*\\.ya?ml"
+                - "(capi-system|capz-system).*pod.*\\.ya?ml"
+    
+          procedure: |
+            1. Identify the failing namespace and deployment from build-log.txt
+               (look for the namespace + "Deployment not ready" lines).
+            2. List the controller logs directory:
+               artifacts/clusters/bootstrap/logs/<namespace>/
+               Identify the failing pod (newest restart count).
+            3. Read the LAST 100-200 lines of that pod's manager.log. Look for:
+               - Panic stack traces.
+               - "OOMKilled" indication (also visible in pod yaml).
+               - leader-election failures (lease lost).
+               - dependency-not-ready errors (e.g. missing CRD).
+            4. If manager.log is empty, the pod never started: read the pod YAML
+               for image-pull errors, missing service account, secret mount
+               failure, or webhook admission rejection.
+            5. Name the specific log line + symptom in root_cause; the
+               suggested_fix should be the actual config / image / RBAC
+               edit needed.
+        external-fetch-failure.yaml: |
+          id: external-fetch-failure
+          name: External dependency fetch failure (GitHub, ghcr, registry)
+          description: |
+            A test setup phase failed to fetch a build dependency from an
+            external service (GitHub release, ghcr.io image, k8s.io registry,
+            golang.org/x module proxy, etc.). Symptoms: HTTP 5xx from the
+            external service, DNS resolution failures, TCP timeouts. These
+            are almost always transient infra outages unrelated to CAPZ.
+            Common manifestation: SynchronizedBeforeSuite fails with
+            GitHub-502 while pulling ginkgo / kubetest / a Helm chart from
+            github.com. Recipe pushes the model toward marking these as
+            transient infra issues rather than fabricating a CAPZ-side root
+            cause. The Step 3 A/B refetch hit one of these on every batch.
+    
+          priority: 180
+    
+          triggers:
+            - "(?i)SynchronizedBeforeSuite"
+            - "(?i)(502|503|504)\\s+(Bad\\s+Gateway|Service\\s+Unavailable|Gateway\\s+Timeout)"
+            - "(?i)(github\\.com|ghcr\\.io|registry\\.k8s\\.io|gcr\\.io|quay\\.io|docker\\.io).*(?:dial tcp|EOF|connection refused|TLS handshake timeout|no such host)"
+            - "(?i)(fetch|download|pull|clone|setup|SynchronizedBeforeSuite).{0,160}Temporary\\s+failure\\s+in\\s+name\\s+resolution"
+            - "(?i)Temporary\\s+failure\\s+in\\s+name\\s+resolution.{0,160}(github\\.com|ghcr\\.io|registry\\.k8s\\.io|gcr\\.io|quay\\.io|docker\\.io)"
+    
+          required_evidence:
+            - id: build-log
+              description: Top-level build-log.txt showing the failing fetch / suite-setup line
+              any_of:
+                - "build-log\\.txt"
+                - ".*build-log\\.txt"
+            - id: test-runner-output
+              description: Any artifact that captures the setup-phase output (ginkgo, kubetest, junit)
+              any_of:
+                - "artifacts/.*junit.*\\.xml"
+                - "artifacts/.*setup.*\\.log"
+                - "artifacts/.*ginkgo.*\\.log"
+    
+          procedure: |
+            1. Read build-log.txt around the failing setup line. The exact
+               HTTP status code, hostname, and path are usually printed
+               verbatim (e.g. "Get https://github.com/.../releases/download/...:
+               502 Bad Gateway"). Quote it verbatim in root_cause.
+            2. Confirm the failure is a fetch / setup phase, not a real test
+               assertion. Setup failures appear before any [It] block runs
+               (SynchronizedBeforeSuite, BeforeSuite, or top-level kubetest
+               setup).
+            3. Determine the upstream service:
+               - github.com 5xx → GitHub outage (check status.github.com)
+               - ghcr.io / docker.io 5xx → registry outage
+               - registry.k8s.io / k8s.gcr.io 5xx → k8s registry outage
+               - "Temporary failure in name resolution" → DNS outage on the
+                 test runner (usually transient, but check kube-system DNS
+                 if the failure is on a workload cluster)
+               - "ssh: rejected" → typically a follow-on of a VM that never
+                 got network (see machine-bootstrap-empty-logs recipe)
+            4. Set is_transient=true. The root_cause should name the external
+               service + the HTTP / DNS error. The suggested_fix should be
+               "re-run the job once the upstream service recovers; no CAPZ-side
+               change required": NOT "investigate CAPZ" or a code edit.
+            5. If the same external-fetch failure repeats across many builds
+               of the same job, note that in root_cause so the operator can
+               escalate to the upstream service, but still mark
+               is_transient=true (it's an infra issue, not a CAPZ regression).
+        helm-chart-apply-failure.yaml: |
+          id: helm-chart-apply-failure
+          name: HelmChartProxy / addon install failed (Calico, AKS extension)
+          description: |
+            Cluster API Addon Provider Helm (CAAPH) fails to install a chart
+            (commonly Calico, kube-vip, AKS extensions). The cluster reports
+            ControlPlaneReady=true but never becomes fully Ready because nodes
+            remain NotReady waiting on the CNI.
+    
+          priority: 110
+    
+          triggers:
+            - "(?i)HelmChartProxy"
+            - "(?i)(calico|kube-vip|cilium).*(install|apply).*fail"
+            - "(?i)helm.*(install|upgrade).*fail"
+    
+          required_evidence:
+            - id: hcp-yaml
+              description: HelmChartProxy / HelmReleaseProxy status conditions
+              any_of:
+                - "artifacts/clusters/.*/HelmChartProxy/.*\\.ya?ml"
+                - "artifacts/clusters/.*/HelmReleaseProxy/.*\\.ya?ml"
+            - id: caaph-controller-log
+              description: caaph / addon-provider-helm controller log
+              any_of:
+                - "caaph-system/.*/manager\\.log"
+                - "addon-helm.*/manager\\.log"
+            - id: workload-cluster-addon-log
+              description: Failing addon pod log inside the workload cluster
+              any_of:
+                - "artifacts/clusters/.*/(calico-system|kube-system|kube-vip).*/.*\\.log"
+    
+          procedure: |
+            1. Read the HelmChartProxy YAML for the failing chart. Status
+               conditions name the phase (TemplateRendered, Installed,
+               Upgraded). Identify which one is false + why.
+            2. Read the caaph controller log filtered for the chart name.
+               Look for template-render errors, value-substitution errors,
+               or "release exists" / lock failures.
+            3. If the chart did install: read the addon pod log inside the
+               workload cluster (e.g. calico-kube-controllers).
+               CrashLoopBackOff at this layer usually means the workload
+               cluster apiserver / network is misconfigured upstream.
+            4. The fix is either a HelmChartProxy spec edit (wrong version,
+               wrong values), a missing identity / secret in the workload
+               cluster, or an upstream cluster networking issue. Cite the
+               exact failed step.
+        machine-bootstrap-empty-logs.yaml: |
+          id: machine-bootstrap-empty-logs
+          name: Machine bootstrap failure with empty cloud-init / kubelet logs
+          description: |
+            An AzureMachine fails to provision and its
+            cloud-init-output.log / kubelet.log under
+            artifacts/clusters/<cluster>/machines/<machine>/ are
+            zero-byte or near-empty. This means the VM never reached cloud-init
+            or never got far enough to start kubelet, so the failure is upstream
+            in Azure VM provisioning, not in the bootstrap script.
+    
+          priority: 150
+    
+          triggers:
+            - "(?i)cloud-init.*(empty|0\\s*bytes|0-byte)"
+            - "(?i)kubelet.*log.*(empty|0\\s*bytes)"
+            - "(?i)machine.*bootstrap.*fail"
+            - "(?i)(name resolution|ssh.*rejected|connect failed).*machine"
+    
+          required_evidence:
+            - id: azuremachine-yaml
+              description: AzureMachine resource YAML with status conditions / FailureMessage
+              any_of:
+                - "artifacts/clusters/.*/AzureMachine/.*\\.ya?ml"
+                - "artifacts/clusters/.*/machines/.*/AzureMachine.*"
+            - id: azure-activity-log
+              description: Azure activity log for the cluster resource group
+              when:
+                - "(?i)(cloud-init.*(empty|0\\s*bytes|0-byte)|kubelet.*log.*(empty|0\\s*bytes)|AzureMachine|Azure VM|VM provisioning).{0,160}(fail|error|empty|0\\s*bytes|not ready)"
+              any_of:
+                - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+            - id: capz-controller-log
+              description: capz-controller-manager log filtered for the failing machine
+              when:
+                - "(?i)(cloud-init.*(empty|0\\s*bytes|0-byte)|kubelet.*log.*(empty|0\\s*bytes)|AzureMachine|Azure VM|VM provisioning).{0,160}(fail|error|empty|0\\s*bytes|not ready)"
+              any_of:
+                - "capz-system/capz-controller-manager.*/manager\\.log"
+                - "capz-system/.*controller-manager.*\\.log"
+    
+          procedure: |
+            1. Identify the failing machine name from build-log.txt and from
+               the directory listing under artifacts/clusters/<cluster>/machines/.
+            2. Read the AzureMachine YAML for that machine. Look at:
+               - status.conditions (VMProvisioned, BootstrapReady, etc.)
+               - status.failureMessage / status.failureReason
+               - spec.image (gallery image reference)
+            3. Read the azure-activity-logs/<cluster>.log filtered for the
+               VM resource name. Look for SkuNotAvailable,
+               OperationNotAllowed, QuotaExceeded, or VM provisioningState
+               Failed entries.
+            4. Read the capz-controller-manager manager.log filtered for the
+               failing machine name. Look for the reconcile loop emitting the
+               specific Azure API error.
+            5. Synthesize: the root cause is whatever AzureMachine.status or
+               activity log reports as the upstream failure. Do NOT punt to
+               "investigate Azure VM provisioning": the activity log usually
+               contains the exact reason.
+        node-not-ready.yaml: |
+          id: node-not-ready
+          name: Node stays NotReady (kubelet / CNI / runtime)
+          description: |
+            A workload-cluster Node never reaches Ready state. The three
+            layers to inspect are kubelet, container runtime (containerd /
+            cri-o), and the CNI. Pattern is common on private / dual-stack
+            / Flatcar clusters where bootstrap variation hits the most edge
+            cases.
+    
+          priority: 110
+    
+          triggers:
+            - "(?i)node.*NotReady"
+            - "(?i)kubelet.*(fail|error)"
+            - "(?i)NetworkUnavailable"
+    
+          required_evidence:
+            - id: kubelet-log
+              description: Node kubelet.log
+              when:
+                - "(?i)(node.{0,80}(NotReady|not ready|never (became|reached) ready)|kubelet.{0,120}(failed to start|is not running|CrashLoop|container runtime.*not ready|certificate|CSR))"
+              any_of:
+                - "artifacts/clusters/.*/machines/.*/kubelet\\.log"
+            - id: runtime-log
+              description: containerd or cri-o log on the failing node
+              when:
+                - "(?i)(containerd|cri-o|crio|container runtime).{0,120}(fail|error|not running|not ready|unavailable)"
+              any_of:
+                - "artifacts/clusters/.*/machines/.*/(containerd|crio)\\.log"
+            - id: cni-pod-log
+              description: CNI pod log inside the workload cluster
+              when:
+                - "(?i)(NetworkUnavailable|CNI|calico|cilium).{0,120}(fail|error|not ready|unavailable)"
+              any_of:
+                - "artifacts/clusters/.*/(calico-system|kube-system|cilium-system).*/.*\\.log"
+    
+          procedure: |
+            1. Identify the NotReady node name from build-log.txt or from the
+               Cluster YAML status.
+            2. Read the last 200 lines of that node's kubelet.log. Look for:
+               - "container runtime is not running"
+               - "Container runtime network not ready: NetworkReady=false"
+               - "Failed to start ContainerManager"
+               - certificate / CSR errors during kubelet client startup
+            3. If the runtime is implicated, read the matching containerd.log /
+               crio.log. Common causes: image-pull misconfiguration, CRI
+               socket-path mismatch, OOM.
+            4. If the network is implicated, read the CNI pod log inside the
+               workload cluster (calico-node, calico-kube-controllers).
+               Common cause: IPAM not initialized, BGP peering failure,
+               CRDs missing.
+            5. Synthesize at the right layer: kubelet symptom is usually
+               downstream of runtime or CNI. Name the actionable component.
+        vmss-instance-failed.yaml: |
+          id: vmss-instance-failed
+          name: VMSS instance or AzureMachinePool failure (Flex / Uniform)
+          description: |
+            An AzureMachinePool backed by a VMSS (Flex or Uniform orchestration)
+            reports a failed instance, or the pool fails to scale to its desired
+            count. Diagnostic path uses the AzureMachinePool YAML +
+            per-instance logs under artifacts/clusters/<cluster>/AzureMachinePool/
+            and the azure-activity-log.
+    
+          priority: 120
+    
+          triggers:
+            - "(?i)AzureMachinePool.*(fail|err)"
+            - "(?i)VMSS.*(instance|provisioning).*fail"
+            - "(?i)machinepool.*(not\\s+ready|stuck)"
+    
+          required_evidence:
+            - id: machinepool-yaml
+              description: AzureMachinePool resource YAML with status.instances
+              any_of:
+                - "artifacts/clusters/.*/AzureMachinePool/.*\\.ya?ml"
+                - "artifacts/clusters/.*/MachinePool/.*\\.ya?ml"
+            - id: azure-activity-log
+              description: Azure activity log for the cluster
+              any_of:
+                - "artifacts/clusters/.*/azure-activity-logs/.*\\.log"
+    
+          procedure: |
+            1. Read the AzureMachinePool YAML. Identify which instance(s) are
+               failed via status.instances[].provisioningState and
+               status.conditions.
+            2. Read azure-activity-logs/<cluster>.log filtered for the VMSS
+               name OR the failed instance ID. Look for SkuNotAvailable,
+               QuotaExceeded, AllocationFailed, or per-instance
+               OSProvisioningTimedOut.
+            3. If the failure is per-instance (one in N): typically a transient
+               allocation failure or a sku-zone availability issue. Document
+               the exact instance + reason.
+            4. If the entire pool fails: usually a template-level problem
+               (image not in the right region, identity not propagated, missing
+               subnet). Cite the AzureMachinePool.spec field that is
+               misconfigured.
+            5. Do NOT punt to "check VMSS in Azure portal": the activity log
+               contains the specific reason.
+        webhook-tls-failure.yaml: |
+          id: webhook-tls-failure
+          name: CAPZ webhook TLS / x509 verification failure
+          description: |
+            CAPZ admission/validation webhook calls fail with x509
+            certificate-signed-by-unknown-authority errors during cluster
+            bootstrap or template application. Canonical CAPZ symptom that
+            cascades into context-deadline-exceeded on AzureCluster /
+            AzureMachineTemplate creation. Dominant failure pattern in the
+            Step 2.5.1 shadow batch (5 of 6 cases).
+    
+          priority: 200
+    
+          triggers:
+            - "(?i)x509:?\\s*certificate"
+            - "(?i)tls:?\\s*failed\\s+to\\s+verify"
+            - "(?i)webhook.*tls"
+            - "(?i)capz-webhook-service"
+    
+          required_evidence:
+            - id: webhook-config
+              description: cert-manager Certificate / Issuer config or webhook manifest
+              any_of:
+                - "config/(cert|web)manager/.*\\.ya?ml"
+                - "config/webhook/.*\\.ya?ml"
+                - "validatingwebhookconfiguration"
+                - "mutatingwebhookconfiguration"
+            - id: capz-controller-log
+              description: capz-controller-manager log around the webhook reject window
+              any_of:
+                - "capz-system/capz-controller-manager.*/manager\\.log"
+                - "capz-system/.*controller-manager.*\\.log"
+    
+          procedure: |
+            1. Identify the failing webhook endpoint and the exact resource
+               kind from build-log.txt (e.g. validate-infrastructure-cluster-x-k8s-io-v1beta1-azurecluster).
+            2. Read the cert-manager Certificate that backs the webhook server cert
+               (look under config/certmanager/ or config/webhook/certmanager/).
+               Confirm dnsNames cover the webhook Service DNS
+               (capz-webhook-service.capz-system.svc).
+            3. Read the capz-controller-manager manager.log around the failure
+               window. Look for "certificate signed by unknown authority" on
+               the SERVER side, or for the webhook server failing to load its
+               cert at startup (file-not-found, secret-not-mounted).
+            4. Determine whether the root cause is:
+               - cert-manager Certificate misconfiguration (wrong dnsNames /
+                 wrong issuer ref), OR
+               - webhook secret never mounted into the controller pod, OR
+               - cert-manager controller itself failing (read its manager.log
+                 in the bootstrap cluster), OR
+               - kube-apiserver trust bundle missing the CA (rare; only when
+                 bootstrap cluster CA setup itself failed).
+            5. Cite the file + line of the actionable misconfiguration in
+               root_cause. The suggested_fix should name the exact YAML edit
+               (e.g. "add `capz-webhook-service.capz-system.svc.cluster.local`
+               to config/certmanager/certificate.yaml dnsNames").
+        workload-cluster-create-timeout.yaml: |
+          id: workload-cluster-create-timeout
+          name: Workload cluster create timed out (private / ipv6 / Flatcar)
+          description: |
+            Workload cluster create did not become Ready before the Ginkgo
+            timeout. Common across private-cluster, IPv6, dual-stack, and
+            Flatcar variants. The "timed out" line in build-log.txt is a
+            symptom; the root cause is whichever phase never finished
+            (control plane provisioning, CNI install, node bootstrap).
+    
+          priority: 100
+    
+          triggers:
+            - "(?i)workload\\s+cluster.*(timeout|timed?\\s*out)"
+            - "(?i)cluster.*never\\s+ready"
+            - "(?i)context\\s+deadline\\s+exceeded.*cluster"
+    
+          required_evidence:
+            - id: cluster-yaml
+              description: Cluster / AzureCluster status conditions
+              any_of:
+                - "artifacts/clusters/.*/Cluster/.*\\.ya?ml"
+                - "artifacts/clusters/.*/AzureCluster/.*\\.ya?ml"
+            - id: control-plane-log
+              description: Control plane machine bootstrap or kubelet log, OR KCP controller log
+              any_of:
+                - "artifacts/clusters/.*/machines/.*-control-plane.*/(cloud-init-output|kubelet|containerd)\\.log"
+                - "capi-kubeadm-control-plane-system/.*/manager\\.log"
+            - id: capz-or-capi-log
+              description: CAPZ / CAPI controller log
+              any_of:
+                - "capz-system/capz-controller-manager.*/manager\\.log"
+                - "capi-system/capi-controller-manager.*/manager\\.log"
+    
+          procedure: |
+            1. Read the Cluster YAML status.conditions. Identify which phase
+               stalled: ControlPlaneInitialized=false, ControlPlaneReady=false,
+               InfrastructureReady=false, or workers-only failure.
+            2. If ControlPlane never initialized: read the first control plane
+               machine cloud-init-output.log and kubelet.log. Was kubeadm init
+               ever reached? Was etcd ever healthy?
+            3. If ControlPlane initialized but Cluster not Ready: typically a
+               CNI install / addon issue. Check HelmChartProxy status (see
+               helm-chart-apply-failure recipe) or the CNI deployment.
+            4. If InfrastructureReady=false: Azure-side problem. Read the
+               AzureCluster YAML + azure-activity-logs.
+            5. Read the relevant CAPI/CAPZ controller log filtered for the
+               cluster name to see what reconcile was retrying.
+            6. Cite the specific failed phase + the artifact that proves it.
+               The suggested_fix should name what blocked the phase, not "raise
+               the timeout".
       systemPrompt: |
         # CAPZ Aster AI prompt addendum
     
-        This file is concatenated between the engine's universal Prow base prompt and
-        its JSON response schema. It is a source-only baseline and has not been validated
-        against historical failures. Replace the TODOs with a grounded diagnostic runbook,
-        then run $author-aster-diagnostics to test and improve it against a representative
-        historical corpus. Use only project documentation, job configuration, source, and
-        observed CI artifacts. Leave an item unresolved instead of adding plausible guidance.
+        This file is consumed by the [Aster][engine] fetcher and concatenated
+        between the engine's universal Prow base prompt and the engine's JSON response
+        schema. Edit anything below; the engine handles the framing.
     
-        The analyzer can read supplied Prow artifacts. If Kubernetes artifact tools are
-        enabled, they navigate Kubernetes-shaped logs and resource dumps already in the
-        artifact tree. The analyzer does not connect to a live Kubernetes API and does
-        not have portal, SSH, arbitrary shell, browser, or local CLI access.
+        [engine]: https://github.com/willie-yao/aster
     
         ---
     
-        You are debugging CAPZ Aster CI test failures.
+        You are debugging Cluster API Provider Azure (CAPZ) E2E test failures.
     
         ## Architecture
+        - CAPZ uses Cluster API to provision Kubernetes clusters on Azure.
+        - Resource hierarchy: Cluster → AzureCluster (infra) + KubeadmControlPlane (CP nodes) + MachineDeployments (workers).
+        - Each Machine maps to an AzureMachine (Azure VM).
+        - Addons deployed via HelmChartProxy: Calico CNI (label: cni=calico), cloud-provider-azure (label: cloud-provider=azure), azuredisk-csi-driver.
     
-        <!-- TODO: describe only component and resource relationships that help localize
-        failures. -->
+        ## Control Plane Initialization Flow
+        1. First CP Machine → AzureMachine provisions VM → cloud-init runs kubeadm init.
+        2. EnsureControlPlaneInitialized waits for API server.
+        3. CAAPH installs CNI (Calico) and cloud-provider-azure via Helm.
+        4. Remaining CP nodes join via kubeadm join.
+        5. Workers scale up, join cluster.
+        6. cloud-controller-manager sets providerID on Nodes.
+        7. CAPI Machine transitions to Running once providerID is set.
     
-        ## Diagnostic lifecycle
+        ## Critical Dependency Chain
+        kube-proxy → Calico CNI → CoreDNS → cloud-node-manager → cloud-controller-manager → providerID → Machine Running.
+        If any link breaks, downstream components fail.
     
-        <!-- TODO: describe the relevant provisioning, initialization, reconciliation,
-        test, and cleanup sequence. Require conditions and timestamped logs to prove the
-        stalled phase. -->
+        ## Template Flavors
+        35+ CI flavors: prow (base HA), prow-ci-version, prow-azl3 (Azure Linux 3), prow-flatcar-sysext, prow-windows, prow-machine-pool, prow-aks, prow-topology, prow-dual-stack, prow-ipv6, prow-azure-cni-v1, prow-nvidia-gpu, prow-edgezone, prow-apiserver-ilb, prow-dalec-custom-builds, prow-private, prow-spot, etc.
     
-        ## Test and job flavors
+        ## CAPZ Artifact Layout
+        Per-build artifacts under `artifacts/clusters/{cluster-name}/`:
+        - `machines/{vm}/cloud-init-output.log`, `boot.log`, `kubelet.log`, `containerd.log`, `journal.log`
+        - `Machine/`, `AzureMachine/`, `MachinePool/`, `AzureMachinePool/` (resource YAML dumps)
+        - `azure-activity-logs/{cluster-name}.log` (Azure ARM activity log excerpt)
+        - `logs/{namespace}/{deployment}/{pod}/manager.log` (controller-manager logs, e.g. `capz-system/capz-controller-manager/...`, `capi-system/capi-controller-manager/...`) - the management cluster's controllers live under the `bootstrap` cluster. To drill a failing resource named X, grep the owning controller's manager.log for "X".
     
-        <!-- TODO: describe test families and environment flavors established by project
-        documentation or job configuration. Require the analyzer to identify the actual
-        flavor before applying flavor-specific guidance. -->
+        ## Common Failure Patterns
     
-        ## Artifact layout
+        ### Azure Infrastructure
+        - VM provisioning failure: quota exceeded, SkuNotAvailable, spot eviction → check AzureMachine FailureMessage.
+        - Resource group deletion stuck: leaked NICs/public IPs/disks.
     
-        <!-- TODO: list exact project-specific artifact paths only when documented, and
-        state what each artifact proves. Label universal Prow files as defaults. -->
+        ### Control Plane
+        - CP never initializes (0/N ready): check first CP machine's cloud-init and kubeadm init logs.
+        - CP partially initialized (1/3 or 2/3): inspect the joining machine's cloud-init-output.log / boot.log FIRST. A concrete bootstrap cause there (preKubeadmCommands failure, package/download error, cert-distribution bug, version skew) is a real failure - report it. An etcd-join or API-unreachable timeout on the joining node with NO specific cause in those logs is usually a transient infra flake (see Transient Errors).
+        - Timeout waiting for control plane machines: check if VMs are provisioned but kubelet never registered.
     
-        ## Common failure patterns
+        ### Worker Nodes
+        - MachineDeployment stuck at 0 ready: check Machine conditions, NodeHealthy.
+        - Provisioned but not Running = kubelet never registered → VM-level issue.
+        - MachineHealthCheck cycling: MHC killing machines that don't become healthy.
     
-        <!-- TODO: for each supported pattern, name the signal, required evidence, causal
-        conclusion to avoid, and remediation boundary. -->
+        ### Networking/CNI
+        - Pods in ContainerCreating: CNI not installed (missing cluster label cni=calico) or calico-node crashing.
+        - Services unreachable: kube-proxy not running → no ClusterIP routing → cascading failures.
+        - Azure CNI v1 specific: azure-vnet-ipam misconfiguration.
     
-        ## Transient classification
+        ### Cloud-Init / VM Bootstrap
+        - VM extension error (CAPZ.Linux.Bootstrapping): ALWAYS debug cloud-init, not the extension. Extension just waits for sentinel file.
+        - preKubeadmCommands failure: binary download 404, package install error, script syntax error.
+        - kubeadm init/join failure: version skew, invalid flags, cert issues.
+        - Version skew: gallery image kubelet version > target KUBERNETES_VERSION.
     
-        <!-- TODO: add only project-supported transient rules. Each rule must state the
-        positive run evidence that permits the classification and the evidence or
-        persistence that makes the failure non-transient. Do not add generic classes. -->
+        ### Image Pull Failures
+        - Tag doesn't exist (LTS versions, unreleased), registry unreachable, rate limiting.
     
-        ## Triage order
+        ### Addon Failures
+        - cloud-provider-azure not deployed: missing cloud-provider=azure label.
+        - CCM/CNM image empty: Helm chart version mapping doesn't cover cluster's k8s minor.
+        - cloud-node-manager CrashLoopBackOff: usually cascading from kube-proxy not running.
     
-        <!-- TODO: provide an artifact-first sequence from failing test detail, or the
-        synthesized build-level failure when JUnit is absent, through build-log.txt,
-        resource conditions, component logs, and a passing comparison. -->
+        ### Dalec Custom Builds (prow-dalec-custom-builds flavor)
+        - LTS version image pull failure: tags like v1.31.100 don't exist upstream, must pre-pull and re-tag.
+        - Stale /etc/sysconfig/kubelet on azl3: removed --pod-infra-container-image flag in k8s v1.35.
+        - Silent binary replacement failure: gallery binaries remain, causing version skew.
     
-        ## Relevant source repositories
+        ## Transient Errors (set is_transient=true, do NOT flag as bugs)
+        - HTTP 429 / Azure API throttling.
+        - Temporary quota exceeded.
+        - "context deadline exceeded" during cleanup.
+        - Intermittent DNS resolution failures.
+        - Image pull backoff that resolves on retry.
+        - "connection refused" to port 6443 during first few minutes (API server starting).
+        - "node not found" in kubelet logs (before registration).
+        - etcd "no leader" / "waiting for leader" during initial formation.
+        - cloud-init url_helper.py retry warnings (metadata service).
+        - x509 "certificate signed by unknown authority" / "tls: bad certificate" when calling CAPZ (or other CAPI provider) webhooks during cluster or management-cluster bringup. This is a KNOWN webhook-cert-propagation flake (the cert-manager CA bundle has not finished injecting when early reconcile calls fire); it is not severe and the test should just be retried. Set is_transient=true. (Only treat it as a real bug if the webhook calls fail for the ENTIRE run with no successful call and you confirm a concrete CA-bundle misconfiguration.)
+        - kubeadm "etcd-join" / "error creating local etcd static pod manifest file: context deadline exceeded" on a joining control-plane node: set is_transient=true ONLY when the joining machine's cloud-init-output.log / boot.log show no specific bootstrap failure. If those logs reveal a concrete cause (preKubeadmCommands error, download/package failure, config or cert error), classify it as a real failure and report that cause.
     
-        <!-- TODO: list only grounded GitHub owner/name repositories that can produce
-        actionable relevant_files paths. -->
+        ## CAPZ-specific Triage Order
+        1. build-log.txt: first fatal error or timeout.
+        2. kubelet.log: startup crashes, flag errors, certs, API connection.
+        3. cloud-init-output.log / boot.log: did bootstrap scripts succeed?
+        4. azure-activity-logs/{cluster-name}.log: VM provisioning errors, API failures.
+        5. Resource YAMLs (Machine/, AzureMachine/, ...): verify template expansion and conditions.
     
-        ## Unresolved details
+        ## Repos to Reference in `relevant_files`
+        - kubernetes-sigs/cluster-api-provider-azure (CAPZ): templates, controllers, e2e tests.
+        - kubernetes-sigs/cluster-api (CAPI core): Machine/Cluster types, KubeadmControlPlane, MachineDeployment.
+        - kubernetes-sigs/cluster-api-addon-provider-helm (CAAPH): HelmChartProxy installer.
+        - kubernetes-sigs/cloud-provider-azure: CCM and CNM controllers.
     
-        <!-- TODO: list important artifact paths, flavors, dependency chains, failure
-        boundaries, or repositories that the available sources do not establish. -->
+        ## AKS version-support grounding
+    
+        When the provider reports `K8sVersionNotSupported` or says the requested
+        Kubernetes version requires Long-Term Support:
+    
+        - Keep the provider's version or support-plan rejection as the root cause.
+        - Do not invent an exact cloud CLI flag, SKU tier, command, or source edit path.
+        - Name exact syntax or a repository path only after reading it through the build
+          artifacts or repository tools at the tested revision.
+        - If implementation details are not verified, recommend selecting a supported
+          non-LTS version or enabling the required support plan through verified project
+          automation, then rerunning the same job.
+    
+        For the exact `K8sVersionNotSupported` / LTS-only AKS rejection class, use this
+        safe remediation outcome when repository implementation details are not verified:
+    
+        "Select an AKS Kubernetes version supported in the target region without LTS,
+        or enable the required Long-Term Support plan through verified project
+        automation, then rerun the same job."
+    
+        That is a concrete remediation outcome, not a diagnostic punt. Do not replace it
+        with a source filename, CLI command, option, or SKU name unless that exact detail
+        was read from artifacts or repository tools.
+    
+        For a build-level `Prow job execution` failure with a complete sparse artifact
+        tree, read `build-log.txt` and at least one authoritative Prow context artifact
+        (`prowjob.json`, `podinfo.json`, or `clone-records.json`) before finalizing. A
+        missing JUnit file is expected when bootstrap fails before tests start; do not
+        search for cluster artifacts that the complete tree proves absent.
     server:
       actions:
         enabled: false

@@ -1,0 +1,27 @@
+id: aso-clusterctl-upgrade-conversion-webhook
+name: ASO conversion webhook unavailable during clusterctl upgrade
+description: |
+  clusterctl provider upgrade fails while listing an ASO resource after the
+  ASO conversion webhook deployment was scaled down.
+
+priority: 300
+
+triggers:
+  - '(?i)clusterctl\s+upgrade.*(?:ManagedClustersAgentPool|ManagedCluster|VirtualNetworks?Subnet|VirtualNetwork)'
+  - '(?i)(?:ManagedClustersAgentPool|ManagedCluster|VirtualNetworks?Subnet|VirtualNetwork).*client rate limiter Wait returned an error'
+  - '(?i)azureserviceoperator-webhook-service.*(?:connect(?:ion)? refused|conversion)'
+  - '(?i)storage is \(re\)initializing.*conversion webhook'
+
+required_evidence:
+  - id: clusterctl-upgrade-log
+    description: clusterctl upgrade log showing provider scale-down and the first failed discovery retry
+    any_of:
+      - '(?i)^artifacts/clusters/clusterctl-upgrade-management-[^/]+/clusterctl-upgrade\.log$'
+
+procedure: |
+  1. Read the clusterctl-upgrade.log for the failing management cluster. If the build has several upgrade clusters, compare the candidate logs and use the one whose ASO GVK and timestamp match the JUnit failure.
+  2. Trace the sequence in that log. The known failure is: clusterctl scales down the infrastructure-azure provider and azureserviceoperator-controller-manager, provider deletion or resource discovery lists an ASO GVK, then the Kubernetes API conversion call to azureserviceoperator-webhook-service is refused. Later client rate-limiter or context-deadline messages are terminal retry symptoms.
+  3. Do not classify this sequence as Azure ARM throttling unless an Azure activity log or response explicitly shows HTTP 429 or RateLimitExceeded. Listing an ASO custom resource and calling its conversion webhook are Kubernetes API operations.
+  4. A CAPI module frame such as sigs.k8s.io/cluster-api/test/framework/clusterctl/client.go is the generic upgrade caller. For CAPZ, inspect the provider-owned PreUpgrade wiring in test/e2e/capi_test.go and the reusable ASO CRD labeling logic in internal/asomigration/labels.go.
+  5. The remediation is to label ASO-managed CRDs with cluster.x-k8s.io/provider=infrastructure-azure before clusterctl scales providers down, or preserve the equivalent provider-owned pre-upgrade hook. Increasing timeouts, QPS, retries, or test reruns does not correct the ordering bug.
+  6. If the tested revision already contains the labeling helper, confirm that the PreUpgrade hook ran and that every ASO-managed CRD had the provider label before treating the failure as the same bug.

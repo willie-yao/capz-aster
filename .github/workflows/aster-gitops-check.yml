@@ -54,25 +54,32 @@ jobs:
           helm pull oci://ghcr.io/willie-yao/charts/aster \
             --version 0.9.0-rc.1 \
             --destination "$RUNNER_TEMP"
+          skill_args=()
+          for skill in skills/*.yaml; do
+            key="$(basename "$skill")"
+            skill_args+=(--set-file "project.skills.${key//./\\.}=$skill")
+          done
           helm lint "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
             -f deploy/values.yaml \
             --set-file project.config=project.yaml \
-            --set-file project.systemPrompt=prompts/system.md
+            --set-file project.systemPrompt=prompts/system.md \
+            "${skill_args[@]}"
           helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
             --namespace capz-aster \
             -f deploy/values.yaml \
             --set-file project.config=project.yaml \
             --set-file project.systemPrompt=prompts/system.md \
+            "${skill_args[@]}" \
             > "$RUNNER_TEMP/render.yaml"
 
-      - name: Enforce public provider-free contract
+      - name: Enforce public read-only contract
         shell: bash
         run: |
           set -euo pipefail
           render="$RUNNER_TEMP/render.yaml"
           if grep -Eq '^kind:[[:space:]]*Secret[[:space:]]*$' "$render"; then exit 1; fi
           if grep -Eq 'image:[[:space:]]*[^[:space:]]+:(latest|main)([[:space:]]|$)' "$render"; then exit 1; fi
-          if grep -Eq '(^|[^A-Za-z0-9_])(AI_TOKEN|BOT_TOKEN|OAUTH_CLIENT_SECRET|SESSION_KEY|SMTP_PASSWORD)([^A-Za-z0-9_]|$)' project.yaml deploy/*.yaml gitops/**/*.yaml; then exit 1; fi
+          if grep -Eq '(^|[^A-Za-z0-9_])(BOT_TOKEN|OAUTH_CLIENT_SECRET|SESSION_KEY|SMTP_PASSWORD)([^A-Za-z0-9_]|$)' project.yaml deploy/*.yaml gitops/**/*.yaml; then exit 1; fi
           mac_root="/""Users/"
           linux_root="/""home/"
           if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
@@ -82,6 +89,21 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$render")" -eq 1
           grep -Fq 'type: LoadBalancer' "$render"
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$render")" -eq 2
-          if grep -Fq 'agent-sandbox-fix-executor' "$render"; then exit 1; fi
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster:v0.9.0-rc.1' "$render")" -eq 2
+          test "$(grep -Ec '^[[:space:]]*- name: AI_TOKEN$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*key: AI_TOKEN$' "$render")" -eq 1
+          grep -Fq 'name: capz-aster-model' "$render"
+          grep -Fq 'value: "chat_completions"' "$render"
+          grep -Fq 'value: "https://api.githubcopilot.com/chat/completions"' "$render"
+          grep -Fq 'value: "claude-sonnet-4.6"' "$render"
+          grep -Fq 'value: "250000"' "$render"
+          grep -Fq 'value: "capz-aster-v09rc1-sonnet46-20260815"' "$render"
+          grep -Fq -- '-builds=1' "$render"
+          grep -Fq -- '-workers=2' "$render"
+          grep -Fq -- '-watch-interval=24h' "$render"
+          grep -Fq -- '-reconcile-interval=24h' "$render"
+          grep -Fq -- '-ai' "$render"
+          if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CHAT_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|AUTH_MODE|OAUTH_CLIENT_ID|OAUTH_CLIENT_SECRET|SESSION_KEY|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED' "$render"; then exit 1; fi
+          if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
           if grep -RIE --include='*.yaml' -- 'aster-platform|platform-chart' gitops/; then exit 1; fi
           if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi
