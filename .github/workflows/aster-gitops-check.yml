@@ -98,7 +98,7 @@ jobs:
           grep -Fq 'value: "claude-sonnet-4.6"' "$render"
           grep -Fq 'value: "250000"' "$render"
           grep -Fq 'value: "capz-aster-v09rc1-sonnet46-20260815"' "$render"
-          grep -Fq -- '-builds=1' "$render"
+          grep -Fq -- '-builds=10' "$render"
           grep -Fq -- '-workers=2' "$render"
           grep -Fq -- '-watch-interval=24h' "$render"
           grep -Fq -- '-reconcile-interval=24h' "$render"

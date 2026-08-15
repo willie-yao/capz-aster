@@ -23,7 +23,7 @@ ai:
   existingSecret: capz-aster-model
   tokenSecretKey: AI_TOKEN
 fetcher:
-  buildsPerJob: 1
+  buildsPerJob: 10
   workers: 2
   timeout: 6h
   watchInterval: 24h

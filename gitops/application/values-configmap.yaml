@@ -28,7 +28,7 @@ data:
     analysisRuntime:
       type: inprocess
     fetcher:
-      buildsPerJob: 1
+      buildsPerJob: 10
       includePresubmits: false
       reconcileInterval: 24h
       timeout: 6h
