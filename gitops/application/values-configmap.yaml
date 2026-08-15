@@ -63,10 +63,11 @@ data:
         name: CAPZ Aster
         short_name: CAPZ
     
+        testgrid:
+          dashboard: sig-cluster-lifecycle-cluster-api-provider-azure
+    
         discovery:
-          source: bucket
-          exact_jobs:
-            - periodic-cluster-api-provider-azure-e2e-main
+          source: testgrid
     
         storage:
           provider: gcs
@@ -79,6 +80,42 @@ data:
           source_repo:
             owner: kubernetes-sigs
             name: cluster-api-provider-azure
+    
+        categories:
+          - match: conformance
+            id: conformance
+            label: Conformance
+          - match: "[managed kubernetes]"
+            id: aks-e2e
+            label: AKS E2E
+          - match: e2e-aks
+            id: aks-e2e
+            label: AKS E2E
+          - match: capi-e2e
+            id: capi-e2e
+            label: CAPI E2E
+          - match: upgrade
+            id: upgrade
+            label: Upgrade
+          - match: coverage
+            id: coverage
+            label: Coverage
+          - match: scalability
+            id: scalability
+            label: Scalability
+          - match: e2e
+            id: capz-e2e
+            label: CAPZ E2E
+    
+        category_display_order:
+          - capz-e2e
+          - aks-e2e
+          - upgrade
+          - capi-e2e
+          - conformance
+          - coverage
+          - scalability
+          - other
     
         ai:
           api: chat_completions
@@ -890,9 +927,19 @@ data:
         search for cluster artifacts that the complete tree proves absent.
     server:
       actions:
+        admins:
+          - willie-yao
         enabled: false
+        mode: oauth
+        oauth:
+          clientId: Ov23liNCuc2721wqKaDw
+          existingSecret: capz-aster-auth
+          redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback
       chat:
-        enabled: false
+        correctionsEnabled: false
+        enabled: true
+        sourceInvestigation:
+          enabled: false
       service:
         annotations:
           service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend

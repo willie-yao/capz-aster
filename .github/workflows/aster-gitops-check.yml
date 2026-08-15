@@ -85,13 +85,71 @@ jobs:
           if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '(^|[^A-Za-z0-9_])(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})' .; then exit 1; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          project = Path("project.yaml").read_text()
+          values = Path("deploy/values.yaml").read_text()
+          discovery = """testgrid:
+            dashboard: sig-cluster-lifecycle-cluster-api-provider-azure
+
+          discovery:
+            source: testgrid
+          """
+          categories = """categories:
+            - match: conformance
+              id: conformance
+              label: Conformance
+            - match: "[managed kubernetes]"
+              id: aks-e2e
+              label: AKS E2E
+            - match: e2e-aks
+              id: aks-e2e
+              label: AKS E2E
+            - match: capi-e2e
+              id: capi-e2e
+              label: CAPI E2E
+            - match: upgrade
+              id: upgrade
+              label: Upgrade
+            - match: coverage
+              id: coverage
+              label: Coverage
+            - match: scalability
+              id: scalability
+              label: Scalability
+            - match: e2e
+              id: capz-e2e
+              label: CAPZ E2E
+
+          category_display_order:
+            - capz-e2e
+            - aks-e2e
+            - upgrade
+            - capi-e2e
+            - conformance
+            - coverage
+            - scalability
+            - other
+          """
+          assert discovery in project
+          assert categories in project
+          assert "exact_jobs:" not in project
+          assert "job_filters:" not in project
+          assert "includePresubmits: false" in values
+          assert "clientId: Ov23liNCuc2721wqKaDw" in values
+          assert "redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback" in values
+          assert "existingSecret: capz-aster-auth" in values
+          assert "botToken:" not in values
+          assert "correctionsEnabled: false" in values
+          assert "sourceInvestigation:\n      enabled: false" in values
+          PY
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$render")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$render")" -eq 1
           grep -Fq 'type: LoadBalancer' "$render"
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$render")" -eq 2
           test "$(grep -Fc 'image: ghcr.io/willie-yao/aster:v0.9.0-rc.1' "$render")" -eq 2
-          test "$(grep -Ec '^[[:space:]]*- name: AI_TOKEN$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*key: AI_TOKEN$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*- name: AI_TOKEN$' "$render")" -eq 2
+          test "$(grep -Ec '^[[:space:]]*key: AI_TOKEN$' "$render")" -eq 2
           grep -Fq 'name: capz-aster-model' "$render"
           grep -Fq 'value: "chat_completions"' "$render"
           grep -Fq 'value: "https://api.githubcopilot.com/chat/completions"' "$render"
@@ -103,7 +161,19 @@ jobs:
           grep -Fq -- '-watch-interval=5m' "$render"
           grep -Fq -- '-reconcile-interval=1h' "$render"
           grep -Fq -- '-ai' "$render"
-          if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CHAT_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|AUTH_MODE|OAUTH_CLIENT_ID|OAUTH_CLIENT_SECRET|SESSION_KEY|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED' "$render"; then exit 1; fi
+          test "$(grep -Ec '^[[:space:]]*- name: ANALYSIS_CHAT_ENABLED$' "$render")" -eq 1
+          grep -Fq 'value: "true"' "$render"
+          grep -Fq 'value: "oauth"' "$render"
+          grep -Fq 'value: "willie-yao"' "$render"
+          grep -Fq 'value: "Ov23liNCuc2721wqKaDw"' "$render"
+          grep -Fq 'value: "https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback"' "$render"
+          test "$(grep -Ec '^[[:space:]]*- name: OAUTH_CLIENT_SECRET$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*key: OAUTH_CLIENT_SECRET$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*- name: SESSION_KEY$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*key: SESSION_KEY$' "$render")" -eq 1
+          test "$(grep -Fc 'name: capz-aster-auth' "$render")" -eq 2
+          test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 3
+          if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION' "$render"; then exit 1; fi
           if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
           if grep -RIE --include='*.yaml' -- 'aster-platform|platform-chart' gitops/; then exit 1; fi
           if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi

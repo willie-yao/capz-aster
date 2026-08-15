@@ -45,9 +45,19 @@ agentSandbox:
     enabled: false
 server:
   chat:
-    enabled: false
+    enabled: true
+    correctionsEnabled: false
+    sourceInvestigation:
+      enabled: false
   actions:
     enabled: false
+    mode: oauth
+    admins:
+      - willie-yao
+    oauth:
+      clientId: Ov23liNCuc2721wqKaDw
+      redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback
+      existingSecret: capz-aster-auth
   service:
     type: LoadBalancer
     publicOriginAcknowledged: true
