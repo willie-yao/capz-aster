@@ -4,6 +4,8 @@ image:
   repository: ghcr.io/willie-yao/aster
   tag: v0.9.0-rc.1
 mode: watch
+analysisCache:
+  generation: capz-aster-v09rc1-sonnet46-20260815
 persistence:
   enabled: true
   existingClaim: ""
@@ -12,7 +14,21 @@ persistence:
   size: 100Gi
   retain: true
 ai:
-  enabled: false
+  enabled: true
+  api: chat_completions
+  endpoint: https://api.githubcopilot.com/chat/completions
+  model: claude-sonnet-4.6
+  reasoningEffort: ""
+  contextWindowTokens: 250000
+  existingSecret: capz-aster-model
+  tokenSecretKey: AI_TOKEN
+fetcher:
+  buildsPerJob: 1
+  workers: 2
+  timeout: 6h
+  watchInterval: 24h
+  reconcileInterval: 24h
+  includePresubmits: false
 analysisRuntime:
   type: inprocess
 orka:
