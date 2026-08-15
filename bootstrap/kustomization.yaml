@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - runtimeclass.yaml
+  - flux-applier-rbac.yaml
