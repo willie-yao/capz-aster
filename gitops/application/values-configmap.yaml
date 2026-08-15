@@ -40,7 +40,7 @@ data:
       existingClaim: ""
       retain: true
       size: 1Gi
-      storageClass: azurefile-csi-premium
+      storageClass: capz-aster-rwx
     project:
       config: |
         id: capz-aster
