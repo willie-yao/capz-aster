@@ -39,7 +39,7 @@ data:
       enabled: true
       existingClaim: ""
       retain: true
-      size: 1Gi
+      size: 100Gi
       storageClass: capz-aster-rwx
     project:
       config: |

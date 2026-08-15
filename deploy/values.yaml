@@ -9,7 +9,7 @@ persistence:
   existingClaim: ""
   storageClass: capz-aster-rwx
   accessMode: ReadWriteMany
-  size: 1Gi
+  size: 100Gi
   retain: true
 ai:
   enabled: false
