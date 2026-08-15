@@ -1,0 +1,87 @@
+name: Aster GitOps check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Download pinned Aster CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -o "$RUNNER_TEMP/aster" \
+            https://github.com/willie-yao/aster/releases/download/v0.9.0-rc.1/aster-v0.9.0-rc.1-linux-amd64
+          echo "df1328a05492185a36a9ed429d478f17aaab082e550e41c271691532ec8260dd  $RUNNER_TEMP/aster" | sha256sum -c -
+          chmod 0755 "$RUNNER_TEMP/aster"
+
+      - name: Verify consumer checksums
+        shell: bash
+        run: sha256sum -c SHA256SUMS
+
+      - name: Run static doctor
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/aster" onboard doctor -project-dir .
+
+      - name: Check generated GitOps bundle
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/aster" kubernetes gitops check \
+            -project-dir . \
+            -gitops-dir gitops \
+            -release capz-aster \
+            -namespace capz-aster \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -chart-version 0.9.0-rc.1
+
+      - name: Lint and render application chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm pull oci://ghcr.io/willie-yao/charts/aster \
+            --version 0.9.0-rc.1 \
+            --destination "$RUNNER_TEMP"
+          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
+            -f deploy/values.yaml \
+            --set-file project.config=project.yaml \
+            --set-file project.systemPrompt=prompts/system.md
+          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
+            --namespace capz-aster \
+            -f deploy/values.yaml \
+            --set-file project.config=project.yaml \
+            --set-file project.systemPrompt=prompts/system.md \
+            > "$RUNNER_TEMP/render.yaml"
+
+      - name: Enforce public provider-free contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          render="$RUNNER_TEMP/render.yaml"
+          if grep -Eq '^kind:[[:space:]]*Secret[[:space:]]*$' "$render"; then exit 1; fi
+          if grep -Eq 'image:[[:space:]]*[^[:space:]]+:(latest|main)([[:space:]]|$)' "$render"; then exit 1; fi
+          if grep -Eq '(^|[^A-Za-z0-9_])(AI_TOKEN|BOT_TOKEN|OAUTH_CLIENT_SECRET|SESSION_KEY|SMTP_PASSWORD)([^A-Za-z0-9_]|$)' project.yaml deploy/*.yaml gitops/**/*.yaml; then exit 1; fi
+          mac_root="/""Users/"
+          linux_root="/""home/"
+          if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
+          if grep -RIE --exclude-dir=.git -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then exit 1; fi
+          if grep -RIE --exclude-dir=.git -- '(^|[^A-Za-z0-9_])(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})' .; then exit 1; fi
+          test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$render")" -eq 1
+          grep -Fq 'type: LoadBalancer' "$render"
+          test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$render")" -eq 2
+          if grep -Fq 'agent-sandbox-fix-executor' "$render"; then exit 1; fi
+          if grep -RIE --include='*.yaml' -- 'aster-platform|platform-chart' gitops/; then exit 1; fi
+          if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi

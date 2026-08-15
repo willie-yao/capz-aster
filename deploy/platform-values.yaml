@@ -1,0 +1,17 @@
+application:
+  releaseName: capz-aster
+
+execution:
+  namespace: capz-aster-sandbox
+  runtimeClassName: aster-kata-vm-isolation
+  workloadServiceAccountName: fix-workload
+  networkPolicy:
+    mode: cilium
+    allowedFQDNs:
+      - github.com
+      - proxy.golang.org
+      - sum.golang.org
+      - storage.googleapis.com
+
+modelGateway:
+  enabled: false

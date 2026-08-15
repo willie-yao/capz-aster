@@ -1,0 +1,66 @@
+# CAPZ Aster AI prompt addendum
+
+This file is concatenated between the engine's universal Prow base prompt and
+its JSON response schema. It is a source-only baseline and has not been validated
+against historical failures. Replace the TODOs with a grounded diagnostic runbook,
+then run $author-aster-diagnostics to test and improve it against a representative
+historical corpus. Use only project documentation, job configuration, source, and
+observed CI artifacts. Leave an item unresolved instead of adding plausible guidance.
+
+The analyzer can read supplied Prow artifacts. If Kubernetes artifact tools are
+enabled, they navigate Kubernetes-shaped logs and resource dumps already in the
+artifact tree. The analyzer does not connect to a live Kubernetes API and does
+not have portal, SSH, arbitrary shell, browser, or local CLI access.
+
+---
+
+You are debugging CAPZ Aster CI test failures.
+
+## Architecture
+
+<!-- TODO: describe only component and resource relationships that help localize
+failures. -->
+
+## Diagnostic lifecycle
+
+<!-- TODO: describe the relevant provisioning, initialization, reconciliation,
+test, and cleanup sequence. Require conditions and timestamped logs to prove the
+stalled phase. -->
+
+## Test and job flavors
+
+<!-- TODO: describe test families and environment flavors established by project
+documentation or job configuration. Require the analyzer to identify the actual
+flavor before applying flavor-specific guidance. -->
+
+## Artifact layout
+
+<!-- TODO: list exact project-specific artifact paths only when documented, and
+state what each artifact proves. Label universal Prow files as defaults. -->
+
+## Common failure patterns
+
+<!-- TODO: for each supported pattern, name the signal, required evidence, causal
+conclusion to avoid, and remediation boundary. -->
+
+## Transient classification
+
+<!-- TODO: add only project-supported transient rules. Each rule must state the
+positive run evidence that permits the classification and the evidence or
+persistence that makes the failure non-transient. Do not add generic classes. -->
+
+## Triage order
+
+<!-- TODO: provide an artifact-first sequence from failing test detail, or the
+synthesized build-level failure when JUnit is absent, through build-log.txt,
+resource conditions, component logs, and a passing comparison. -->
+
+## Relevant source repositories
+
+<!-- TODO: list only grounded GitHub owner/name repositories that can produce
+actionable relevant_files paths. -->
+
+## Unresolved details
+
+<!-- TODO: list important artifact paths, flavors, dependency chains, failure
+boundaries, or repositories that the available sources do not establish. -->

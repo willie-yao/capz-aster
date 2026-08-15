@@ -1,0 +1,54 @@
+global:
+  imageTag: v0.9.0-rc.1
+
+image:
+  repository: ghcr.io/willie-yao/aster
+  tag: v0.9.0-rc.1
+
+mode: watch
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: azurefile-csi-premium
+  accessMode: ReadWriteMany
+  size: 1Gi
+  retain: true
+
+ai:
+  enabled: false
+
+analysisRuntime:
+  type: inprocess
+
+orka:
+  agentAnalysisShadow:
+    enabled: false
+  fixRuntime:
+    enabled: false
+
+agentSandbox:
+  fixRuntime:
+    enabled: false
+  analyzer:
+    enabled: false
+  causalCritic:
+    enabled: false
+
+server:
+  chat:
+    enabled: false
+  actions:
+    enabled: false
+  service:
+    type: LoadBalancer
+    publicOriginAcknowledged: true
+    annotations:
+      service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+  ingress: []

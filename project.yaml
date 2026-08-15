@@ -1,0 +1,20 @@
+id: capz-aster
+name: CAPZ Aster
+short_name: CAPZ
+
+discovery:
+  source: bucket
+  exact_jobs:
+    - periodic-cluster-api-provider-azure-e2e-main
+
+storage:
+  provider: gcs
+  bucket: kubernetes-ci-logs
+
+branding:
+  title: CAPZ Aster Prow Dashboard
+  base_path: /
+  site_url: "https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net"
+  source_repo:
+    owner: kubernetes-sigs
+    name: cluster-api-provider-azure

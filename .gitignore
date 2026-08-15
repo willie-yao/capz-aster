@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.tmp
+*.bak
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*kubeconfig*
+bin/
+dist/
+coverage/
+.private/
+evidence/

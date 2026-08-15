@@ -1,0 +1,35 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: capz-aster
+  namespace: capz-aster
+spec:
+  interval: 30m
+  releaseName: capz-aster
+  targetNamespace: capz-aster
+  storageNamespace: capz-aster
+  chartRef:
+    kind: OCIRepository
+    name: capz-aster-application-chart
+  timeout: 15m
+  driftDetection:
+    mode: enabled
+  install:
+    createNamespace: false
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 3
+      strategy: rollback
+      remediateLastFailure: true
+  valuesFrom:
+    - kind: ConfigMap
+      name: capz-aster-application-values
+      valuesKey: values.yaml

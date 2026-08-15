@@ -1,0 +1,14 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: capz-aster-application-chart
+  namespace: capz-aster
+spec:
+  interval: 30m
+  provider: generic
+  url: oci://ghcr.io/willie-yao/charts/aster
+  ref:
+    tag: "0.9.0-rc.1"
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
