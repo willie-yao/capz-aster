@@ -99,9 +99,9 @@ jobs:
           grep -Fq 'value: "250000"' "$render"
           grep -Fq 'value: "capz-aster-v09rc1-sonnet46-20260815"' "$render"
           grep -Fq -- '-builds=10' "$render"
-          grep -Fq -- '-workers=2' "$render"
-          grep -Fq -- '-watch-interval=24h' "$render"
-          grep -Fq -- '-reconcile-interval=24h' "$render"
+          grep -Fq -- '-workers=5' "$render"
+          grep -Fq -- '-watch-interval=5m' "$render"
+          grep -Fq -- '-reconcile-interval=1h' "$render"
           grep -Fq -- '-ai' "$render"
           if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CHAT_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|AUTH_MODE|OAUTH_CLIENT_ID|OAUTH_CLIENT_SECRET|SESSION_KEY|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED' "$render"; then exit 1; fi
           if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi

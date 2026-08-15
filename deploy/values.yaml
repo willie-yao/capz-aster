@@ -24,10 +24,10 @@ ai:
   tokenSecretKey: AI_TOKEN
 fetcher:
   buildsPerJob: 10
-  workers: 2
+  workers: 5
   timeout: 6h
-  watchInterval: 24h
-  reconcileInterval: 24h
+  watchInterval: 5m
+  reconcileInterval: 1h
   includePresubmits: false
 analysisRuntime:
   type: inprocess
