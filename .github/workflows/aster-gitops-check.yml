@@ -17,6 +17,8 @@ jobs:
 
       - uses: azure/setup-helm@v4
 
+      - uses: azure/setup-kubectl@v4
+
       - name: Download pinned Aster CLI
         shell: bash
         run: |
@@ -36,95 +38,28 @@ jobs:
         run: |
           "$RUNNER_TEMP/aster" onboard doctor -project-dir .
 
-      - name: Check generated GitOps declarations
+      - name: Check generated GitOps bundle
         shell: bash
         run: |
           set -euo pipefail
-          # v0.9.0-rc.1 emits platform files only when application Fix is enabled.
-          application_reference="$RUNNER_TEMP/application-reference"
-          cp -a . "$application_reference"
-          "$RUNNER_TEMP/aster" kubernetes gitops render \
-            -project-dir "$application_reference" \
-            -output gitops-application-check \
-            -release capz-aster \
-            -namespace capz-aster \
-            -chart oci://ghcr.io/willie-yao/charts/aster \
-            -chart-version 0.9.0-rc.1
-          "$RUNNER_TEMP/aster" kubernetes gitops check \
-            -project-dir "$application_reference" \
-            -gitops-dir gitops-application-check \
-            -release capz-aster \
-            -namespace capz-aster \
-            -chart oci://ghcr.io/willie-yao/charts/aster \
-            -chart-version 0.9.0-rc.1
-          for path in \
-            README.md \
-            application/helmrelease.yaml \
-            application/kustomization.yaml \
-            application/namespace.yaml \
-            application/values-configmap.yaml \
-            sources/application-chart.yaml; do
-            cmp "$application_reference/gitops-application-check/$path" "gitops/$path"
-          done
-
-          reference="$RUNNER_TEMP/platform-reference"
+          reference="$RUNNER_TEMP/gitops-reference"
           cp -a . "$reference"
-          python3 - "$reference/deploy/values.yaml" <<'PY'
-          from pathlib import Path
-          import sys
-
-          path = Path(sys.argv[1])
-          text = path.read_text()
-          old = "\n".join([
-              "agentSandbox:",
-              "  fixRuntime:",
-              "    enabled: false",
-              "  analyzer:",
-          ]) + "\n"
-          new = "\n".join([
-              "agentSandbox:",
-              "  fixRuntime:",
-              "    enabled: true",
-              "    namespace: capz-aster-sandbox",
-              "    runtimeClassName: aster-kata-vm-isolation",
-              "    image:",
-              "      repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor",
-              "      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000",
-              "      pullPolicy: IfNotPresent",
-              "    dashboardImage:",
-              "      repository: ghcr.io/willie-yao/aster/remote-fixer",
-              "      tag: v0.9.0-rc.1",
-              "      pullPolicy: IfNotPresent",
-              "    workloadServiceAccount:",
-              "      create: false",
-              "      name: fix-workload",
-              "    modelProvider:",
-              "      credentialMode: direct",
-              "      api: chat_completions",
-              "      endpoint: https://api.githubcopilot.com/chat/completions",
-              "      model: claude-sonnet-4.6",
-              "      reasoningEffort: high",
-              "      auth:",
-              "        type: bearer",
-              "        existingSecret: capz-aster-fix-model",
-              "        tokenKey: AI_TOKEN",
-              "      publicCAPrivateDNS: false",
-              "    maxSteps: 30",
-              "    maxFiles: 3",
-              "    timeout: 10m",
-              "    outputLimitBytes: 524288",
-              "    allowedCommands:",
-              "      - argv: [git, diff, --cached, --check]",
-              "        timeout: 1m",
-              "  analyzer:",
-          ]) + "\n"
-          if old not in text:
-              raise SystemExit("disabled Fix block not found")
-          path.write_text(text.replace(old, new, 1))
-          PY
           "$RUNNER_TEMP/aster" kubernetes gitops render \
             -project-dir "$reference" \
-            -output gitops-reference \
+            -values deploy/values.yaml \
+            -platform-values deploy/platform-values.yaml \
+            -output gitops-generated \
+            -release capz-aster \
+            -namespace capz-aster \
+            -execution-namespace capz-aster-sandbox \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
+            -chart-version 0.9.0-rc.1
+          "$RUNNER_TEMP/aster" kubernetes gitops check \
+            -project-dir "$reference" \
+            -values deploy/values.yaml \
+            -platform-values deploy/platform-values.yaml \
+            -gitops-dir gitops-generated \
             -release capz-aster \
             -namespace capz-aster \
             -execution-namespace capz-aster-sandbox \
@@ -132,14 +67,53 @@ jobs:
             -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
             -chart-version 0.9.0-rc.1
           for path in \
+            README.md \
+            application/kustomization.yaml \
+            application/namespace.yaml \
+            application/values-configmap.yaml \
             kustomization.yaml \
             platform/helmrelease.yaml \
             platform/kustomization.yaml \
             platform/values-configmap.yaml \
+            sources/application-chart.yaml \
             sources/kustomization.yaml \
             sources/platform-chart.yaml; do
-            cmp "$reference/gitops-reference/$path" "gitops/$path"
+            cmp "$reference/gitops-generated/$path" "gitops/$path"
           done
+          python3 - "$reference/gitops-generated/application/helmrelease.yaml" gitops/application/helmrelease.yaml <<'PY'
+          from pathlib import Path
+          import sys
+
+          canonical = Path(sys.argv[1]).read_text()
+          actual = Path(sys.argv[2]).read_text()
+          start = actual.index("  postRenderers:\n")
+          end = actual.index("  valuesFrom:\n", start)
+          overlay = actual[start:end]
+          assert actual[:start] + actual[end:] == canonical
+          assert overlay.splitlines() == [
+              "  postRenderers:",
+              "    - kustomize:",
+              "        patches:",
+              "          - target:",
+              "              group: admissionregistration.k8s.io",
+              "              version: v1",
+              "              kind: ValidatingAdmissionPolicy",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
+              "          - target:",
+              "              group: admissionregistration.k8s.io",
+              "              version: v1",
+              "              kind: ValidatingAdmissionPolicyBinding",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
+          ]
+          PY
 
       - name: Lint and render application chart
         shell: bash
@@ -163,6 +137,26 @@ jobs:
             --namespace capz-aster \
             -f "$RUNNER_TEMP/application-values.yaml" \
             > "$RUNNER_TEMP/render.yaml"
+          postrender="$RUNNER_TEMP/application-postrender"
+          mkdir -p "$postrender"
+          cp "$RUNNER_TEMP/render.yaml" "$postrender/resources.yaml"
+          python3 - gitops/application/helmrelease.yaml "$postrender/kustomization.yaml" <<'PY'
+          from pathlib import Path
+          import sys
+
+          lines = Path(sys.argv[1]).read_text().splitlines()
+          start = lines.index("        patches:") + 1
+          end = lines.index("  valuesFrom:")
+          patches = [line[8:] for line in lines[start:end]]
+          Path(sys.argv[2]).write_text(
+              "apiVersion: kustomize.config.k8s.io/v1beta1\n"
+              "kind: Kustomization\n"
+              "resources:\n"
+              "  - resources.yaml\n"
+              "patches:\n" + "\n".join(patches) + "\n"
+          )
+          PY
+          kubectl kustomize "$postrender" > "$RUNNER_TEMP/postrendered.yaml"
 
       - name: Lint and render platform chart
         shell: bash
@@ -192,7 +186,7 @@ jobs:
             > "$RUNNER_TEMP/platform-source-render.yaml"
           cmp "$RUNNER_TEMP/platform-render.yaml" "$RUNNER_TEMP/platform-source-render.yaml"
 
-      - name: Enforce public read-only contract
+      - name: Enforce deployment contract
         shell: bash
         run: |
           set -euo pipefail
@@ -267,7 +261,7 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$render")" -eq 1
           grep -Fq 'type: LoadBalancer' "$render"
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$render")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster:v0.9.0-rc.1' "$render")" -eq 2
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.1' "$render")" -eq 2
           test "$(grep -Ec '^[[:space:]]*- name: AI_TOKEN$' "$render")" -eq 2
           test "$(grep -Ec '^[[:space:]]*key: AI_TOKEN$' "$render")" -eq 2
           grep -Fq 'name: capz-aster-model' "$render"
@@ -291,10 +285,105 @@ jobs:
           test "$(grep -Ec '^[[:space:]]*key: OAUTH_CLIENT_SECRET$' "$render")" -eq 1
           test "$(grep -Ec '^[[:space:]]*- name: SESSION_KEY$' "$render")" -eq 1
           test "$(grep -Ec '^[[:space:]]*key: SESSION_KEY$' "$render")" -eq 1
-          test "$(grep -Fc 'name: capz-aster-auth' "$render")" -eq 2
-          test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 3
-          if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION' "$render"; then exit 1; fi
-          if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
+          test "$(grep -Fc 'name: capz-aster-auth' "$render")" -eq 3
+          test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 4
+          test "$(grep -Ec '^[[:space:]]*- name: ACTIONS_ENABLED$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*- name: BOT_TOKEN$' "$render")" -eq 1
+          test "$(grep -Ec '^[[:space:]]*key: BOT_TOKEN$' "$render")" -eq 1
+          grep -Fq 'value: "capz-aster-sandbox"' "$render"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0"' "$render"
+          grep -Fq 'value: "direct"' "$render"
+          grep -Fq 'value: "bearer"' "$render"
+          grep -Fq 'value: "capz-aster-fix-model"' "$render"
+          grep -Fq 'value: "high"' "$render"
+          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicy[[:space:]]*$' "$render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicyBinding[[:space:]]*$' "$render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*Role[[:space:]]*$' "$render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*RoleBinding[[:space:]]*$' "$render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$render")" -eq 1
+          if grep -Eq '^kind:[[:space:]]*(Secret|Pod|Sandbox)[[:space:]]*$' "$render"; then exit 1; fi
+          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
+          bootstrap_admission="$RUNNER_TEMP/bootstrap-admission"
+          mkdir -p "$bootstrap_admission"
+          cp bootstrap/fix-admission.yaml "$bootstrap_admission/fix-admission.yaml"
+          cat > "$bootstrap_admission/kustomization.yaml" <<'YAML'
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - fix-admission.yaml
+          patches:
+            - target:
+                group: admissionregistration.k8s.io
+                version: v1
+                kind: ValidatingAdmissionPolicy
+                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+              patch: |
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-name
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-namespace
+            - target:
+                group: admissionregistration.k8s.io
+                version: v1
+                kind: ValidatingAdmissionPolicyBinding
+                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+              patch: |
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-name
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-namespace
+          YAML
+          kubectl kustomize "$bootstrap_admission" > "$RUNNER_TEMP/bootstrap-admission.yaml"
+          python3 - "$render" "$RUNNER_TEMP/postrendered.yaml" "$RUNNER_TEMP/bootstrap-admission.yaml" bootstrap/platform-execution-access.yaml bootstrap/fix-admission.yaml <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          render = Path(sys.argv[1]).read_text()
+          postrendered = Path(sys.argv[2]).read_text()
+          bootstrap_rendered = Path(sys.argv[3]).read_text()
+          platform_rbac = Path(sys.argv[4]).read_text()
+          bootstrap_source = Path(sys.argv[5]).read_text()
+
+          def documents(text):
+              return [part.strip() + "\n" for part in text.split("\n---\n") if part.strip()]
+
+          def selected(text, kind):
+              matches = [part for part in documents(text) if f"kind: {kind}\n" in part and "name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in part]
+              assert len(matches) == 1
+              return matches[0]
+
+          for kind in ("ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"):
+              post = selected(postrendered, kind)
+              preadopted = selected(bootstrap_rendered, kind)
+              assert post == preadopted
+              assert post.count("helm.sh/resource-policy: keep") == 1
+
+          special_rules = re.findall(
+              r"- apiGroups:\n\s+- rbac\.authorization\.k8s\.io\n\s+resources:\n\s+- roles\n\s+resourceNames:\n\s+- capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n\s+verbs:\n\s+- escalate\n\s+- bind",
+              platform_rbac,
+          )
+          assert len(special_rules) == 1
+
+          manager_start = bootstrap_source.index("kind: ClusterRole\nmetadata:\n  name: capz-aster-fix-admission-manager")
+          manager_end = bootstrap_source.index("\n---\n", manager_start)
+          manager = bootstrap_source[manager_start:manager_end]
+          assert "resourceNames:\n      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in manager
+          assert "verbs:\n      - get\n      - update\n      - patch" in manager
+          assert "      - create" not in manager
+          assert "      - delete" not in manager
+
+          rendered_docs = documents(render)
+          deployments = [part for part in rendered_docs if "kind: Deployment\n" in part]
+          server = next(part for part in deployments if "name: capz-aster-prow-ai-dashboard-server" in part)
+          worker = next(part for part in deployments if "name: capz-aster-prow-ai-dashboard-worker" in part)
+          assert server.count("- name: BOT_TOKEN") == 1
+          assert "key: BOT_TOKEN" in server and "name: capz-aster-auth" in server
+          assert "BOT_TOKEN" not in worker
+          assert "capz-aster-fix-model" in server and "capz-aster-fix-model" in worker
+          assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
+          assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in worker
+          PY
           platform_render="$RUNNER_TEMP/platform-render.yaml"
           test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform_render")" -eq 1
           grep -Fq 'name: capz-aster-sandbox' "$platform_render"
@@ -311,5 +400,6 @@ jobs:
           grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
           grep -Fq 'url: oci://ghcr.io/willie-yao/charts/aster-platform' gitops/sources/platform-chart.yaml
           grep -Fq 'tag: "0.9.0-rc.1"' gitops/sources/platform-chart.yaml
-          if grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml; then exit 1; fi
+          grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml
+          grep -Fq 'name: capz-aster-platform' gitops/application/helmrelease.yaml
           if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi

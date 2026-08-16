@@ -56,6 +56,14 @@ category_display_order:
   - scalability
   - other
 
+issues:
+  enabled: false
+  repo:
+    owner: kubernetes-sigs
+    name: cluster-api-provider-azure
+  labels:
+    - ai-proposed-fix-demo
+
 ai:
   api: chat_completions
   endpoint: https://api.githubcopilot.com/chat/completions
@@ -81,6 +89,36 @@ ai:
   source_repo:
     owner: kubernetes-sigs
     name: cluster-api-provider-azure
+  fix_prs:
+    enabled: true
+    repo:
+      owner: kubernetes-sigs
+      name: cluster-api-provider-azure
+    fork: true
+    author_name: William Yao
+    author_email: william2000yao@gmail.com
+    max_files: 3
+    labels:
+      - ai-proposed-fix-demo
+    critique_retries: 0
+    agent_runtime:
+      type: agent-sandbox
+      max_turns: 30
+      allow_bash: false
+      timeout: 10m
+      output_limit_bytes: 524288
+      allowed_commands:
+        - argv: [git, diff, --cached, --check]
+          timeout: 1m
+      model_provider:
+        credential_mode: direct
+        api: chat_completions
+        endpoint: https://api.githubcopilot.com/chat/completions
+        model: claude-sonnet-4.6
+        reasoning_effort: high
+        auth:
+          type: bearer
+        public_ca_private_dns: false
   consumer_skills:
     required: true
     minimum_count: 13

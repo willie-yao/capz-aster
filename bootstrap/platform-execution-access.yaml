@@ -80,6 +80,28 @@ rules:
       - patch
       - delete
   - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+      - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    resourceNames:
+      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+    verbs:
+      - escalate
+      - bind
+  - apiGroups:
       - networking.k8s.io
     resources:
       - networkpolicies

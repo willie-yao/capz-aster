@@ -6,3 +6,4 @@ resources:
   - storageclass.yaml
   - flux-applier-rbac.yaml
   - platform-execution-access.yaml
+  - fix-admission.yaml

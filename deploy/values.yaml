@@ -38,7 +38,42 @@ orka:
     enabled: false
 agentSandbox:
   fixRuntime:
-    enabled: false
+    enabled: true
+    namespace: capz-aster-sandbox
+    runtimeClassName: aster-kata-vm-isolation
+    image:
+      repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
+      digest: sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0
+      pullPolicy: IfNotPresent
+    dashboardImage:
+      repository: ghcr.io/willie-yao/aster/remote-fixer
+      tag: v0.9.0-rc.1
+      pullPolicy: IfNotPresent
+    workloadServiceAccount:
+      create: false
+      name: fix-workload
+    modelProvider:
+      credentialMode: direct
+      api: chat_completions
+      endpoint: https://api.githubcopilot.com/chat/completions
+      model: claude-sonnet-4.6
+      reasoningEffort: high
+      auth:
+        type: bearer
+        existingSecret: capz-aster-fix-model
+        tokenKey: AI_TOKEN
+      publicCAPrivateDNS: false
+    caBundle:
+      existingConfigMap: ""
+      key: ""
+      sha256: ""
+    maxSteps: 30
+    maxFiles: 3
+    timeout: 10m
+    outputLimitBytes: 524288
+    allowedCommands:
+      - argv: [git, diff, --cached, --check]
+        timeout: 1m
   analyzer:
     enabled: false
   causalCritic:
@@ -50,7 +85,7 @@ server:
     sourceInvestigation:
       enabled: false
   actions:
-    enabled: false
+    enabled: true
     mode: oauth
     admins:
       - willie-yao
