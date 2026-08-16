@@ -4,6 +4,7 @@ kind: ValidatingAdmissionPolicy
 metadata:
   name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
   annotations:
+    helm.sh/resource-policy: keep
     meta.helm.sh/release-name: capz-aster
     meta.helm.sh/release-namespace: capz-aster
   labels:
@@ -93,6 +94,7 @@ kind: ValidatingAdmissionPolicyBinding
 metadata:
   name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
   annotations:
+    helm.sh/resource-policy: keep
     meta.helm.sh/release-name: capz-aster
     meta.helm.sh/release-namespace: capz-aster
   labels:
@@ -123,7 +125,6 @@ rules:
       - get
       - update
       - patch
-      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

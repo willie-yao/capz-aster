@@ -40,17 +40,78 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/aster" kubernetes gitops check \
-            -project-dir . \
+          reference="$RUNNER_TEMP/gitops-reference"
+          cp -a . "$reference"
+          "$RUNNER_TEMP/aster" kubernetes gitops render \
+            -project-dir "$reference" \
             -values deploy/values.yaml \
             -platform-values deploy/platform-values.yaml \
-            -gitops-dir gitops \
+            -output gitops-generated \
             -release capz-aster \
             -namespace capz-aster \
             -execution-namespace capz-aster-sandbox \
             -chart oci://ghcr.io/willie-yao/charts/aster \
             -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
             -chart-version 0.9.0-rc.1
+          "$RUNNER_TEMP/aster" kubernetes gitops check \
+            -project-dir "$reference" \
+            -values deploy/values.yaml \
+            -platform-values deploy/platform-values.yaml \
+            -gitops-dir gitops-generated \
+            -release capz-aster \
+            -namespace capz-aster \
+            -execution-namespace capz-aster-sandbox \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
+            -chart-version 0.9.0-rc.1
+          for path in \
+            README.md \
+            application/kustomization.yaml \
+            application/namespace.yaml \
+            application/values-configmap.yaml \
+            kustomization.yaml \
+            platform/helmrelease.yaml \
+            platform/kustomization.yaml \
+            platform/values-configmap.yaml \
+            sources/application-chart.yaml \
+            sources/kustomization.yaml \
+            sources/platform-chart.yaml; do
+            cmp "$reference/gitops-generated/$path" "gitops/$path"
+          done
+          python3 - "$reference/gitops-generated/application/helmrelease.yaml" gitops/application/helmrelease.yaml <<'PY'
+          from pathlib import Path
+          import sys
+
+          canonical = Path(sys.argv[1]).read_text()
+          actual = Path(sys.argv[2]).read_text()
+          start = actual.index("  postRenderers:\n")
+          end = actual.index("  valuesFrom:\n", start)
+          overlay = actual[start:end]
+          assert actual[:start] + actual[end:] == canonical
+          assert overlay.splitlines() == [
+              "  postRenderers:",
+              "    - kustomize:",
+              "        patches:",
+              "          - target:",
+              "              group: admissionregistration.k8s.io",
+              "              version: v1",
+              "              kind: ValidatingAdmissionPolicy",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
+              "          - target:",
+              "              group: admissionregistration.k8s.io",
+              "              version: v1",
+              "              kind: ValidatingAdmissionPolicyBinding",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
+          ]
+          PY
 
       - name: Lint and render application chart
         shell: bash
@@ -233,7 +294,7 @@ jobs:
           for part in admission:
               expected.append(part.replace(
                   "metadata:\n  name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n  labels:",
-                  "metadata:\n  name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n  annotations:\n    meta.helm.sh/release-name: capz-aster\n    meta.helm.sh/release-namespace: capz-aster\n  labels:",
+                  "metadata:\n  name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n  annotations:\n    helm.sh/resource-policy: keep\n    meta.helm.sh/release-name: capz-aster\n    meta.helm.sh/release-namespace: capz-aster\n  labels:",
                   1,
               ))
           bootstrap_docs = [part.strip() + "\n" for part in bootstrap.split("\n---\n")]

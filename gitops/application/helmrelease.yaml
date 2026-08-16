@@ -31,6 +31,27 @@ spec:
       retries: 3
       strategy: rollback
       remediateLastFailure: true
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: admissionregistration.k8s.io
+              version: v1
+              kind: ValidatingAdmissionPolicy
+              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+            patch: |
+              - op: add
+                path: /metadata/annotations/helm.sh~1resource-policy
+                value: keep
+          - target:
+              group: admissionregistration.k8s.io
+              version: v1
+              kind: ValidatingAdmissionPolicyBinding
+              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+            patch: |
+              - op: add
+                path: /metadata/annotations/helm.sh~1resource-policy
+                value: keep
   valuesFrom:
     - kind: ConfigMap
       name: capz-aster-application-values
