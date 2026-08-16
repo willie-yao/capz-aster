@@ -114,10 +114,16 @@ jobs:
 
           bootstrap = Path("bootstrap/kustomization.yaml").read_text()
           access = Path("bootstrap/platform-execution-access.yaml").read_text()
+          admission_access = Path("bootstrap/fix-admission-access.yaml").read_text()
           assert "fix-admission.yaml" not in bootstrap
           assert "fix-rbac.yaml" not in bootstrap
           assert not Path("bootstrap/fix-admission.yaml").exists()
           assert not Path("bootstrap/fix-rbac.yaml").exists()
+          assert "kind: ValidatingAdmissionPolicy\n" not in admission_access
+          assert "kind: ValidatingAdmissionPolicyBinding\n" not in admission_access
+          assert "resources:\n      - validatingadmissionpolicies\n      - validatingadmissionpolicybindings" in admission_access
+          assert "resourceNames:\n      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in admission_access
+          assert "verbs:\n      - get\n      - update\n      - patch" in admission_access
           assert "resources:\n      - roles\n      - rolebindings" in access
           assert "resourceNames:\n      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n    verbs:\n      - escalate\n      - bind" in access
           PY
