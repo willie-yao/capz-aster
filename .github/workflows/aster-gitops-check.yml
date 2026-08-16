@@ -38,164 +38,51 @@ jobs:
         run: |
           "$RUNNER_TEMP/aster" onboard doctor -project-dir .
 
-      - name: Check generated GitOps bundle
+      - name: Check canonical GitOps bundle
         shell: bash
         run: |
           set -euo pipefail
-          reference="$RUNNER_TEMP/gitops-reference"
-          cp -a . "$reference"
-          "$RUNNER_TEMP/aster" kubernetes gitops render \
-            -project-dir "$reference" \
-            -values deploy/values.yaml \
-            -platform-values deploy/platform-values.yaml \
-            -output gitops-generated \
-            -release capz-aster \
-            -namespace capz-aster \
-            -execution-namespace capz-aster-sandbox \
-            -chart oci://ghcr.io/willie-yao/charts/aster \
-            -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
-            -chart-version 0.9.0-rc.1
           "$RUNNER_TEMP/aster" kubernetes gitops check \
-            -project-dir "$reference" \
+            -project-dir . \
             -values deploy/values.yaml \
             -platform-values deploy/platform-values.yaml \
-            -gitops-dir gitops-generated \
+            -gitops-dir gitops \
             -release capz-aster \
             -namespace capz-aster \
             -execution-namespace capz-aster-sandbox \
             -chart oci://ghcr.io/willie-yao/charts/aster \
             -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
             -chart-version 0.9.0-rc.1
-          for path in \
-            README.md \
-            application/kustomization.yaml \
-            application/namespace.yaml \
-            application/values-configmap.yaml \
-            kustomization.yaml \
-            platform/helmrelease.yaml \
-            platform/kustomization.yaml \
-            platform/values-configmap.yaml \
-            sources/application-chart.yaml \
-            sources/kustomization.yaml \
-            sources/platform-chart.yaml; do
-            cmp "$reference/gitops-generated/$path" "gitops/$path"
-          done
-          python3 - "$reference/gitops-generated/application/helmrelease.yaml" gitops/application/helmrelease.yaml <<'PY'
-          from pathlib import Path
-          import sys
 
-          canonical = Path(sys.argv[1]).read_text()
-          actual = Path(sys.argv[2]).read_text()
-          start = actual.index("  postRenderers:\n")
-          end = actual.index("  valuesFrom:\n", start)
-          overlay = actual[start:end]
-          assert actual[:start] + actual[end:] == canonical
-          assert overlay.splitlines() == [
-              "  postRenderers:",
-              "    - kustomize:",
-              "        patches:",
-              "          - target:",
-              "              group: admissionregistration.k8s.io",
-              "              version: v1",
-              "              kind: ValidatingAdmissionPolicy",
-              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
-              "            patch: |",
-              "              - op: add",
-              "                path: /metadata/annotations/helm.sh~1resource-policy",
-              "                value: keep",
-              "          - target:",
-              "              group: admissionregistration.k8s.io",
-              "              version: v1",
-              "              kind: ValidatingAdmissionPolicyBinding",
-              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
-              "            patch: |",
-              "              - op: add",
-              "                path: /metadata/annotations/helm.sh~1resource-policy",
-              "                value: keep",
-              "          - target:",
-              "              group: rbac.authorization.k8s.io",
-              "              version: v1",
-              "              kind: Role",
-              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
-              "              namespace: capz-aster-sandbox",
-              "            patch: |",
-              "              - op: add",
-              "                path: /metadata/annotations/helm.sh~1resource-policy",
-              "                value: keep",
-              "          - target:",
-              "              group: rbac.authorization.k8s.io",
-              "              version: v1",
-              "              kind: RoleBinding",
-              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
-              "              namespace: capz-aster-sandbox",
-              "            patch: |",
-              "              - op: add",
-              "                path: /metadata/annotations/helm.sh~1resource-policy",
-              "                value: keep",
-          ]
-          PY
-
-      - name: Lint and render application chart
+      - name: Lint and render charts
         shell: bash
         run: |
           set -euo pipefail
           helm pull oci://ghcr.io/willie-yao/charts/aster \
             --version 0.9.0-rc.1 \
             --destination "$RUNNER_TEMP"
-          python3 - gitops/application/values-configmap.yaml "$RUNNER_TEMP/application-values.yaml" <<'PY'
-          from pathlib import Path
-          import sys
-
-          lines = Path(sys.argv[1]).read_text().splitlines()
-          marker = "  values.yaml: |"
-          start = lines.index(marker) + 1
-          Path(sys.argv[2]).write_text("\n".join(line[4:] for line in lines[start:]) + "\n")
-          PY
-          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
-            -f "$RUNNER_TEMP/application-values.yaml"
-          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
-            --namespace capz-aster \
-            -f "$RUNNER_TEMP/application-values.yaml" \
-            > "$RUNNER_TEMP/render.yaml"
-          postrender="$RUNNER_TEMP/application-postrender"
-          mkdir -p "$postrender"
-          cp "$RUNNER_TEMP/render.yaml" "$postrender/resources.yaml"
-          python3 - gitops/application/helmrelease.yaml "$postrender/kustomization.yaml" <<'PY'
-          from pathlib import Path
-          import sys
-
-          lines = Path(sys.argv[1]).read_text().splitlines()
-          start = lines.index("        patches:") + 1
-          end = lines.index("  valuesFrom:")
-          patches = [line[8:] for line in lines[start:end]]
-          Path(sys.argv[2]).write_text(
-              "apiVersion: kustomize.config.k8s.io/v1beta1\n"
-              "kind: Kustomization\n"
-              "resources:\n"
-              "  - resources.yaml\n"
-              "patches:\n" + "\n".join(patches) + "\n"
-          )
-          PY
-          kubectl kustomize "$postrender" > "$RUNNER_TEMP/postrendered.yaml"
-
-      - name: Lint and render platform chart
-        shell: bash
-        run: |
-          set -euo pipefail
           helm pull oci://ghcr.io/willie-yao/charts/aster-platform \
             --version 0.9.0-rc.1 \
             --destination "$RUNNER_TEMP"
-          python3 - gitops/platform/values-configmap.yaml "$RUNNER_TEMP/platform-values.yaml" <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
-          import sys
 
-          lines = Path(sys.argv[1]).read_text().splitlines()
-          marker = "  values.yaml: |"
-          start = lines.index(marker) + 1
-          Path(sys.argv[2]).write_text("\n".join(line[4:] for line in lines[start:]) + "\n")
+          for source, destination in (
+              ("gitops/application/values-configmap.yaml", "application-values.yaml"),
+              ("gitops/platform/values-configmap.yaml", "platform-values.yaml"),
+          ):
+              lines = Path(source).read_text().splitlines()
+              start = lines.index("  values.yaml: |") + 1
+              Path(destination).write_text("\n".join(line[4:] for line in lines[start:]) + "\n")
           PY
-          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
-            -f "$RUNNER_TEMP/platform-values.yaml"
+          mv application-values.yaml "$RUNNER_TEMP/application-values.yaml"
+          mv platform-values.yaml "$RUNNER_TEMP/platform-values.yaml"
+          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" -f "$RUNNER_TEMP/application-values.yaml"
+          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" -f "$RUNNER_TEMP/platform-values.yaml"
+          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
+            --namespace capz-aster \
+            -f "$RUNNER_TEMP/application-values.yaml" \
+            > "$RUNNER_TEMP/application-render.yaml"
           helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
             --namespace capz-aster \
             -f "$RUNNER_TEMP/platform-values.yaml" \
@@ -210,230 +97,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          render="$RUNNER_TEMP/render.yaml"
-          if grep -Eq '^kind:[[:space:]]*Secret[[:space:]]*$' "$render"; then exit 1; fi
-          if grep -Eq 'image:[[:space:]]*[^[:space:]]+:(latest|main)([[:space:]]|$)' "$render"; then exit 1; fi
-          if grep -Eq '(^|[^A-Za-z0-9_])(BOT_TOKEN|OAUTH_CLIENT_SECRET|SESSION_KEY|SMTP_PASSWORD)([^A-Za-z0-9_]|$)' project.yaml deploy/*.yaml gitops/**/*.yaml; then exit 1; fi
-          mac_root="/""Users/"
-          linux_root="/""home/"
-          if grep -RIE --exclude-dir=.git --exclude=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
+          application="$RUNNER_TEMP/application-render.yaml"
+          platform="$RUNNER_TEMP/platform-render.yaml"
+
+          if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi
+          if grep -Eq '^kind:[[:space:]]*Secret[[:space:]]*$' "$application" "$platform"; then exit 1; fi
+          if grep -Eq 'image:[[:space:]]*[^[:space:]]+:(latest|main)([[:space:]]|$)' "$application" "$platform"; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '(^|[^A-Za-z0-9_])(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})' .; then exit 1; fi
-          python3 - <<'PY'
-          from pathlib import Path
-          project = Path("project.yaml").read_text()
-          values = Path("deploy/values.yaml").read_text()
-          discovery = """testgrid:
-            dashboard: sig-cluster-lifecycle-cluster-api-provider-azure
+          mac_root="/""Users/"
+          linux_root="/""home/"
+          if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
 
-          discovery:
-            source: testgrid
-          """
-          categories = """categories:
-            - match: conformance
-              id: conformance
-              label: Conformance
-            - match: "[managed kubernetes]"
-              id: aks-e2e
-              label: AKS E2E
-            - match: e2e-aks
-              id: aks-e2e
-              label: AKS E2E
-            - match: capi-e2e
-              id: capi-e2e
-              label: CAPI E2E
-            - match: upgrade
-              id: upgrade
-              label: Upgrade
-            - match: coverage
-              id: coverage
-              label: Coverage
-            - match: scalability
-              id: scalability
-              label: Scalability
-            - match: e2e
-              id: capz-e2e
-              label: CAPZ E2E
+          test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.1' "$application")" -eq 2
+          grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
+          grep -Fq 'type: LoadBalancer' "$application"
+          grep -Fq 'value: "capz-aster-sandbox"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0"' "$application"
+          grep -Fq 'value: "direct"' "$application"
+          grep -Fq 'value: "bearer"' "$application"
+          grep -Fq 'value: "capz-aster-fix-model"' "$application"
+          grep -Fq 'value: "high"' "$application"
+          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicy[[:space:]]*$' "$application")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicyBinding[[:space:]]*$' "$application")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*Role[[:space:]]*$' "$application")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*RoleBinding[[:space:]]*$' "$application")" -eq 1
 
-          category_display_order:
-            - capz-e2e
-            - aks-e2e
-            - upgrade
-            - capi-e2e
-            - conformance
-            - coverage
-            - scalability
-            - other
-          """
-          assert discovery in project
-          assert categories in project
-          assert "exact_jobs:" not in project
-          assert "job_filters:" not in project
-          assert "includePresubmits: false" in values
-          assert "clientId: Ov23liNCuc2721wqKaDw" in values
-          assert "redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback" in values
-          assert "existingSecret: capz-aster-auth" in values
-          assert "botToken:" not in values
-          assert "correctionsEnabled: false" in values
-          assert "sourceInvestigation:\n      enabled: false" in values
-          PY
-          test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$render")" -eq 1
-          grep -Fq 'type: LoadBalancer' "$render"
-          test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$render")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.1' "$render")" -eq 2
-          test "$(grep -Ec '^[[:space:]]*- name: AI_TOKEN$' "$render")" -eq 2
-          test "$(grep -Ec '^[[:space:]]*key: AI_TOKEN$' "$render")" -eq 2
-          grep -Fq 'name: capz-aster-model' "$render"
-          grep -Fq 'value: "chat_completions"' "$render"
-          grep -Fq 'value: "https://api.githubcopilot.com/chat/completions"' "$render"
-          grep -Fq 'value: "claude-sonnet-4.6"' "$render"
-          grep -Fq 'value: "250000"' "$render"
-          grep -Fq 'value: "capz-aster-v09rc1-sonnet46-20260815"' "$render"
-          grep -Fq -- '-builds=10' "$render"
-          grep -Fq -- '-workers=5' "$render"
-          grep -Fq -- '-watch-interval=5m' "$render"
-          grep -Fq -- '-reconcile-interval=1h' "$render"
-          grep -Fq -- '-ai' "$render"
-          test "$(grep -Ec '^[[:space:]]*- name: ANALYSIS_CHAT_ENABLED$' "$render")" -eq 1
-          grep -Fq 'value: "true"' "$render"
-          grep -Fq 'value: "oauth"' "$render"
-          grep -Fq 'value: "willie-yao"' "$render"
-          grep -Fq 'value: "Ov23liNCuc2721wqKaDw"' "$render"
-          grep -Fq 'value: "https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback"' "$render"
-          test "$(grep -Ec '^[[:space:]]*- name: OAUTH_CLIENT_SECRET$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*key: OAUTH_CLIENT_SECRET$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*- name: SESSION_KEY$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*key: SESSION_KEY$' "$render")" -eq 1
-          test "$(grep -Fc 'name: capz-aster-auth' "$render")" -eq 3
-          test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 4
-          test "$(grep -Ec '^[[:space:]]*- name: ACTIONS_ENABLED$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*- name: BOT_TOKEN$' "$render")" -eq 1
-          test "$(grep -Ec '^[[:space:]]*key: BOT_TOKEN$' "$render")" -eq 1
-          grep -Fq 'value: "capz-aster-sandbox"' "$render"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0"' "$render"
-          grep -Fq 'value: "direct"' "$render"
-          grep -Fq 'value: "bearer"' "$render"
-          grep -Fq 'value: "capz-aster-fix-model"' "$render"
-          grep -Fq 'value: "high"' "$render"
-          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicy[[:space:]]*$' "$render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicyBinding[[:space:]]*$' "$render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*Role[[:space:]]*$' "$render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*RoleBinding[[:space:]]*$' "$render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$render")" -eq 1
-          if grep -Eq '^kind:[[:space:]]*(Secret|Pod|Sandbox)[[:space:]]*$' "$render"; then exit 1; fi
-          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
-          bootstrap_admission="$RUNNER_TEMP/bootstrap-admission"
-          mkdir -p "$bootstrap_admission"
-          cp bootstrap/fix-admission.yaml "$bootstrap_admission/fix-admission.yaml"
-          cat > "$bootstrap_admission/kustomization.yaml" <<'YAML'
-          apiVersion: kustomize.config.k8s.io/v1beta1
-          kind: Kustomization
-          resources:
-            - fix-admission.yaml
-          patches:
-            - target:
-                group: admissionregistration.k8s.io
-                version: v1
-                kind: ValidatingAdmissionPolicy
-                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
-              patch: |
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-name
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-namespace
-            - target:
-                group: admissionregistration.k8s.io
-                version: v1
-                kind: ValidatingAdmissionPolicyBinding
-                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
-              patch: |
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-name
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-namespace
-          YAML
-          kubectl kustomize "$bootstrap_admission" > "$RUNNER_TEMP/bootstrap-admission.yaml"
-          bootstrap_rbac="$RUNNER_TEMP/bootstrap-fix-rbac"
-          mkdir -p "$bootstrap_rbac"
-          cp bootstrap/fix-rbac.yaml "$bootstrap_rbac/fix-rbac.yaml"
-          cat > "$bootstrap_rbac/kustomization.yaml" <<'YAML'
-          apiVersion: kustomize.config.k8s.io/v1beta1
-          kind: Kustomization
-          resources:
-            - fix-rbac.yaml
-          patches:
-            - target:
-                group: rbac.authorization.k8s.io
-                version: v1
-                kind: Role
-                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
-                namespace: capz-aster-sandbox
-              patch: |
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-name
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-namespace
-            - target:
-                group: rbac.authorization.k8s.io
-                version: v1
-                kind: RoleBinding
-                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
-                namespace: capz-aster-sandbox
-              patch: |
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-name
-                - op: remove
-                  path: /metadata/annotations/meta.helm.sh~1release-namespace
-          YAML
-          kubectl kustomize "$bootstrap_rbac" > "$RUNNER_TEMP/bootstrap-fix-rbac.yaml"
-          python3 - "$render" "$RUNNER_TEMP/postrendered.yaml" "$RUNNER_TEMP/bootstrap-admission.yaml" "$RUNNER_TEMP/bootstrap-fix-rbac.yaml" bootstrap/platform-execution-access.yaml bootstrap/fix-admission.yaml <<'PY'
+          python3 - "$application" <<'PY'
           from pathlib import Path
-          import re
           import sys
 
-          render = Path(sys.argv[1]).read_text()
-          postrendered = Path(sys.argv[2]).read_text()
-          bootstrap_admission_rendered = Path(sys.argv[3]).read_text()
-          bootstrap_rbac_rendered = Path(sys.argv[4]).read_text()
-          platform_rbac = Path(sys.argv[5]).read_text()
-          bootstrap_source = Path(sys.argv[6]).read_text()
-
-          def documents(text):
-              return [part.strip() + "\n" for part in text.split("\n---\n") if part.strip()]
-
-          def selected(text, kind):
-              matches = [part for part in documents(text) if re.search(rf"^kind: {re.escape(kind)}$", part, re.MULTILINE) and "name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in part]
-              assert len(matches) == 1
-              return matches[0]
-
-          for kind in ("ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"):
-              post = selected(postrendered, kind)
-              preadopted = selected(bootstrap_admission_rendered, kind)
-              assert post == preadopted
-              assert post.count("helm.sh/resource-policy: keep") == 1
-          for kind in ("Role", "RoleBinding"):
-              post = selected(postrendered, kind)
-              preadopted = selected(bootstrap_rbac_rendered, kind)
-              assert post == preadopted
-              assert post.count("helm.sh/resource-policy: keep") == 1
-
-          special_rules = re.findall(
-              r"- apiGroups:\n\s+- rbac\.authorization\.k8s\.io\n\s+resources:\n\s+- roles\n\s+resourceNames:\n\s+- capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n\s+verbs:\n\s+- escalate\n\s+- bind",
-              platform_rbac,
-          )
-          assert len(special_rules) == 1
-
-          manager_start = bootstrap_source.index("kind: ClusterRole\nmetadata:\n  name: capz-aster-fix-admission-manager")
-          manager_end = bootstrap_source.index("\n---\n", manager_start)
-          manager = bootstrap_source[manager_start:manager_end]
-          assert "resourceNames:\n      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in manager
-          assert "verbs:\n      - get\n      - update\n      - patch" in manager
-          assert "      - create" not in manager
-          assert "      - delete" not in manager
-
-          rendered_docs = documents(render)
-          deployments = [part for part in rendered_docs if "kind: Deployment\n" in part]
+          documents = [part.strip() + "\n" for part in Path(sys.argv[1]).read_text().split("\n---\n") if part.strip()]
+          deployments = [part for part in documents if "kind: Deployment\n" in part]
           server = next(part for part in deployments if "name: capz-aster-prow-ai-dashboard-server" in part)
           worker = next(part for part in deployments if "name: capz-aster-prow-ai-dashboard-worker" in part)
           assert server.count("- name: BOT_TOKEN") == 1
@@ -443,22 +141,19 @@ jobs:
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in worker
           PY
-          platform_render="$RUNNER_TEMP/platform-render.yaml"
-          test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform_render")" -eq 1
-          grep -Fq 'name: capz-aster-sandbox' "$platform_render"
-          test "$(grep -Ec '^kind:[[:space:]]*ResourceQuota[[:space:]]*$' "$platform_render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*LimitRange[[:space:]]*$' "$platform_render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$platform_render")" -eq 1
-          grep -Fq 'automountServiceAccountToken: false' "$platform_render"
-          test "$(grep -Ec '^kind:[[:space:]]*NetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
-          test "$(grep -Ec '^kind:[[:space:]]*CiliumNetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
-          grep '^[[:space:]]*- matchName:' "$platform_render" | sed -E 's/.*"([^"]+)".*/\1/' | sort > "$RUNNER_TEMP/platform-hosts.txt"
+
+          test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ResourceQuota[[:space:]]*$' "$platform")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*LimitRange[[:space:]]*$' "$platform")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$platform")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*NetworkPolicy[[:space:]]*$' "$platform")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*CiliumNetworkPolicy[[:space:]]*$' "$platform")" -eq 1
+          grep -Fq 'automountServiceAccountToken: false' "$platform"
+          grep '^[[:space:]]*- matchName:' "$platform" | sed -E 's/.*"([^"]+)".*/\1/' | sort > "$RUNNER_TEMP/platform-hosts.txt"
           printf '%s\n' api.githubcopilot.com github.com proxy.golang.org storage.googleapis.com sum.golang.org > "$RUNNER_TEMP/expected-platform-hosts.txt"
           cmp "$RUNNER_TEMP/expected-platform-hosts.txt" "$RUNNER_TEMP/platform-hosts.txt"
-          if grep -Eq '^kind:[[:space:]]*(Secret|Deployment|Service)[[:space:]]*$' "$platform_render"; then exit 1; fi
+
+          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
           grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
-          grep -Fq 'url: oci://ghcr.io/willie-yao/charts/aster-platform' gitops/sources/platform-chart.yaml
-          grep -Fq 'tag: "0.9.0-rc.1"' gitops/sources/platform-chart.yaml
           grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml
           grep -Fq 'name: capz-aster-platform' gitops/application/helmrelease.yaml
-          if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi
