@@ -8,6 +8,8 @@ spec:
   releaseName: capz-aster
   targetNamespace: capz-aster
   storageNamespace: capz-aster
+  dependsOn:
+    - name: capz-aster-platform
   chartRef:
     kind: OCIRepository
     name: capz-aster-application-chart
