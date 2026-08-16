@@ -109,6 +109,19 @@ jobs:
           linux_root="/""home/"
           if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          bootstrap = Path("bootstrap/kustomization.yaml").read_text()
+          access = Path("bootstrap/platform-execution-access.yaml").read_text()
+          assert "fix-admission.yaml" not in bootstrap
+          assert "fix-rbac.yaml" not in bootstrap
+          assert not Path("bootstrap/fix-admission.yaml").exists()
+          assert not Path("bootstrap/fix-rbac.yaml").exists()
+          assert "resources:\n      - roles\n      - rolebindings" in access
+          assert "resourceNames:\n      - capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc\n    verbs:\n      - escalate\n      - bind" in access
+          PY
+
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
