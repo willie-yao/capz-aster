@@ -36,16 +36,110 @@ jobs:
         run: |
           "$RUNNER_TEMP/aster" onboard doctor -project-dir .
 
-      - name: Check generated GitOps bundle
+      - name: Check generated GitOps declarations
         shell: bash
         run: |
-          "$RUNNER_TEMP/aster" kubernetes gitops check \
-            -project-dir . \
-            -gitops-dir gitops \
+          set -euo pipefail
+          # v0.9.0-rc.1 emits platform files only when application Fix is enabled.
+          application_reference="$RUNNER_TEMP/application-reference"
+          cp -a . "$application_reference"
+          "$RUNNER_TEMP/aster" kubernetes gitops render \
+            -project-dir "$application_reference" \
+            -output gitops-application-check \
             -release capz-aster \
             -namespace capz-aster \
             -chart oci://ghcr.io/willie-yao/charts/aster \
             -chart-version 0.9.0-rc.1
+          "$RUNNER_TEMP/aster" kubernetes gitops check \
+            -project-dir "$application_reference" \
+            -gitops-dir gitops-application-check \
+            -release capz-aster \
+            -namespace capz-aster \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -chart-version 0.9.0-rc.1
+          for path in \
+            README.md \
+            application/helmrelease.yaml \
+            application/kustomization.yaml \
+            application/namespace.yaml \
+            application/values-configmap.yaml \
+            sources/application-chart.yaml; do
+            cmp "$application_reference/gitops-application-check/$path" "gitops/$path"
+          done
+
+          reference="$RUNNER_TEMP/platform-reference"
+          cp -a . "$reference"
+          python3 - "$reference/deploy/values.yaml" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+          old = "\n".join([
+              "agentSandbox:",
+              "  fixRuntime:",
+              "    enabled: false",
+              "  analyzer:",
+          ]) + "\n"
+          new = "\n".join([
+              "agentSandbox:",
+              "  fixRuntime:",
+              "    enabled: true",
+              "    namespace: capz-aster-sandbox",
+              "    runtimeClassName: aster-kata-vm-isolation",
+              "    image:",
+              "      repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor",
+              "      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000",
+              "      pullPolicy: IfNotPresent",
+              "    dashboardImage:",
+              "      repository: ghcr.io/willie-yao/aster/remote-fixer",
+              "      tag: v0.9.0-rc.1",
+              "      pullPolicy: IfNotPresent",
+              "    workloadServiceAccount:",
+              "      create: false",
+              "      name: fix-workload",
+              "    modelProvider:",
+              "      credentialMode: direct",
+              "      api: chat_completions",
+              "      endpoint: https://api.githubcopilot.com/chat/completions",
+              "      model: claude-sonnet-4.6",
+              "      reasoningEffort: high",
+              "      auth:",
+              "        type: bearer",
+              "        existingSecret: capz-aster-fix-model",
+              "        tokenKey: AI_TOKEN",
+              "      publicCAPrivateDNS: false",
+              "    maxSteps: 30",
+              "    maxFiles: 3",
+              "    timeout: 10m",
+              "    outputLimitBytes: 524288",
+              "    allowedCommands:",
+              "      - argv: [git, diff, --cached, --check]",
+              "        timeout: 1m",
+              "  analyzer:",
+          ]) + "\n"
+          if old not in text:
+              raise SystemExit("disabled Fix block not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          "$RUNNER_TEMP/aster" kubernetes gitops render \
+            -project-dir "$reference" \
+            -output gitops-reference \
+            -release capz-aster \
+            -namespace capz-aster \
+            -execution-namespace capz-aster-sandbox \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
+            -chart-version 0.9.0-rc.1
+          for path in \
+            kustomization.yaml \
+            platform/helmrelease.yaml \
+            platform/kustomization.yaml \
+            platform/values-configmap.yaml \
+            sources/kustomization.yaml \
+            sources/platform-chart.yaml; do
+            cmp "$reference/gitops-reference/$path" "gitops/$path"
+          done
 
       - name: Lint and render application chart
         shell: bash
@@ -54,23 +148,49 @@ jobs:
           helm pull oci://ghcr.io/willie-yao/charts/aster \
             --version 0.9.0-rc.1 \
             --destination "$RUNNER_TEMP"
-          skill_args=()
-          for skill in skills/*.yaml; do
-            key="$(basename "$skill")"
-            skill_args+=(--set-file "project.skills.${key//./\\.}=$skill")
-          done
+          python3 - gitops/application/values-configmap.yaml "$RUNNER_TEMP/application-values.yaml" <<'PY'
+          from pathlib import Path
+          import sys
+
+          lines = Path(sys.argv[1]).read_text().splitlines()
+          marker = "  values.yaml: |"
+          start = lines.index(marker) + 1
+          Path(sys.argv[2]).write_text("\n".join(line[4:] for line in lines[start:]) + "\n")
+          PY
           helm lint "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
-            -f deploy/values.yaml \
-            --set-file project.config=project.yaml \
-            --set-file project.systemPrompt=prompts/system.md \
-            "${skill_args[@]}"
+            -f "$RUNNER_TEMP/application-values.yaml"
           helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.1.tgz" \
             --namespace capz-aster \
-            -f deploy/values.yaml \
-            --set-file project.config=project.yaml \
-            --set-file project.systemPrompt=prompts/system.md \
-            "${skill_args[@]}" \
+            -f "$RUNNER_TEMP/application-values.yaml" \
             > "$RUNNER_TEMP/render.yaml"
+
+      - name: Lint and render platform chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm pull oci://ghcr.io/willie-yao/charts/aster-platform \
+            --version 0.9.0-rc.1 \
+            --destination "$RUNNER_TEMP"
+          python3 - gitops/platform/values-configmap.yaml "$RUNNER_TEMP/platform-values.yaml" <<'PY'
+          from pathlib import Path
+          import sys
+
+          lines = Path(sys.argv[1]).read_text().splitlines()
+          marker = "  values.yaml: |"
+          start = lines.index(marker) + 1
+          Path(sys.argv[2]).write_text("\n".join(line[4:] for line in lines[start:]) + "\n")
+          PY
+          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
+            -f "$RUNNER_TEMP/platform-values.yaml"
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
+            --namespace capz-aster \
+            -f "$RUNNER_TEMP/platform-values.yaml" \
+            > "$RUNNER_TEMP/platform-render.yaml"
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
+            --namespace capz-aster \
+            -f deploy/platform-values.yaml \
+            > "$RUNNER_TEMP/platform-source-render.yaml"
+          cmp "$RUNNER_TEMP/platform-render.yaml" "$RUNNER_TEMP/platform-source-render.yaml"
 
       - name: Enforce public read-only contract
         shell: bash
@@ -82,7 +202,7 @@ jobs:
           if grep -Eq '(^|[^A-Za-z0-9_])(BOT_TOKEN|OAUTH_CLIENT_SECRET|SESSION_KEY|SMTP_PASSWORD)([^A-Za-z0-9_]|$)' project.yaml deploy/*.yaml gitops/**/*.yaml; then exit 1; fi
           mac_root="/""Users/"
           linux_root="/""home/"
-          if grep -RIE --exclude-dir=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
+          if grep -RIE --exclude-dir=.git --exclude=.git --exclude=aster-gitops-check.yml -- "${mac_root}|${linux_root}[^/[:space:]]+/" .; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----' .; then exit 1; fi
           if grep -RIE --exclude-dir=.git -- '(^|[^A-Za-z0-9_])(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})' .; then exit 1; fi
           python3 - <<'PY'
@@ -175,5 +295,21 @@ jobs:
           test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 3
           if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION' "$render"; then exit 1; fi
           if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
-          if grep -RIE --include='*.yaml' -- 'aster-platform|platform-chart' gitops/; then exit 1; fi
+          platform_render="$RUNNER_TEMP/platform-render.yaml"
+          test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform_render")" -eq 1
+          grep -Fq 'name: capz-aster-sandbox' "$platform_render"
+          test "$(grep -Ec '^kind:[[:space:]]*ResourceQuota[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*LimitRange[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$platform_render")" -eq 1
+          grep -Fq 'automountServiceAccountToken: false' "$platform_render"
+          test "$(grep -Ec '^kind:[[:space:]]*NetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*CiliumNetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
+          grep '^[[:space:]]*- matchName:' "$platform_render" | sed -E 's/.*"([^"]+)".*/\1/' | sort > "$RUNNER_TEMP/platform-hosts.txt"
+          printf '%s\n' api.githubcopilot.com github.com proxy.golang.org storage.googleapis.com sum.golang.org > "$RUNNER_TEMP/expected-platform-hosts.txt"
+          cmp "$RUNNER_TEMP/expected-platform-hosts.txt" "$RUNNER_TEMP/platform-hosts.txt"
+          if grep -Eq '^kind:[[:space:]]*(Secret|Deployment|Service)[[:space:]]*$' "$platform_render"; then exit 1; fi
+          grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
+          grep -Fq 'url: oci://ghcr.io/willie-yao/charts/aster-platform' gitops/sources/platform-chart.yaml
+          grep -Fq 'tag: "0.9.0-rc.1"' gitops/sources/platform-chart.yaml
+          if grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml; then exit 1; fi
           if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi
