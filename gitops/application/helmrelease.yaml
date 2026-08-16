@@ -52,6 +52,26 @@ spec:
               - op: add
                 path: /metadata/annotations/helm.sh~1resource-policy
                 value: keep
+          - target:
+              group: rbac.authorization.k8s.io
+              version: v1
+              kind: Role
+              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+              namespace: capz-aster-sandbox
+            patch: |
+              - op: add
+                path: /metadata/annotations/helm.sh~1resource-policy
+                value: keep
+          - target:
+              group: rbac.authorization.k8s.io
+              version: v1
+              kind: RoleBinding
+              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+              namespace: capz-aster-sandbox
+            patch: |
+              - op: add
+                path: /metadata/annotations/helm.sh~1resource-policy
+                value: keep
   valuesFrom:
     - kind: ConfigMap
       name: capz-aster-application-values

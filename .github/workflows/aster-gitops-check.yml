@@ -112,6 +112,26 @@ jobs:
               "              - op: add",
               "                path: /metadata/annotations/helm.sh~1resource-policy",
               "                value: keep",
+              "          - target:",
+              "              group: rbac.authorization.k8s.io",
+              "              version: v1",
+              "              kind: Role",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "              namespace: capz-aster-sandbox",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
+              "          - target:",
+              "              group: rbac.authorization.k8s.io",
+              "              version: v1",
+              "              kind: RoleBinding",
+              "              name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc",
+              "              namespace: capz-aster-sandbox",
+              "            patch: |",
+              "              - op: add",
+              "                path: /metadata/annotations/helm.sh~1resource-policy",
+              "                value: keep",
           ]
           PY
 
@@ -334,28 +354,67 @@ jobs:
                   path: /metadata/annotations/meta.helm.sh~1release-namespace
           YAML
           kubectl kustomize "$bootstrap_admission" > "$RUNNER_TEMP/bootstrap-admission.yaml"
-          python3 - "$render" "$RUNNER_TEMP/postrendered.yaml" "$RUNNER_TEMP/bootstrap-admission.yaml" bootstrap/platform-execution-access.yaml bootstrap/fix-admission.yaml <<'PY'
+          bootstrap_rbac="$RUNNER_TEMP/bootstrap-fix-rbac"
+          mkdir -p "$bootstrap_rbac"
+          cp bootstrap/fix-rbac.yaml "$bootstrap_rbac/fix-rbac.yaml"
+          cat > "$bootstrap_rbac/kustomization.yaml" <<'YAML'
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - fix-rbac.yaml
+          patches:
+            - target:
+                group: rbac.authorization.k8s.io
+                version: v1
+                kind: Role
+                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+                namespace: capz-aster-sandbox
+              patch: |
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-name
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-namespace
+            - target:
+                group: rbac.authorization.k8s.io
+                version: v1
+                kind: RoleBinding
+                name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc
+                namespace: capz-aster-sandbox
+              patch: |
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-name
+                - op: remove
+                  path: /metadata/annotations/meta.helm.sh~1release-namespace
+          YAML
+          kubectl kustomize "$bootstrap_rbac" > "$RUNNER_TEMP/bootstrap-fix-rbac.yaml"
+          python3 - "$render" "$RUNNER_TEMP/postrendered.yaml" "$RUNNER_TEMP/bootstrap-admission.yaml" "$RUNNER_TEMP/bootstrap-fix-rbac.yaml" bootstrap/platform-execution-access.yaml bootstrap/fix-admission.yaml <<'PY'
           from pathlib import Path
           import re
           import sys
 
           render = Path(sys.argv[1]).read_text()
           postrendered = Path(sys.argv[2]).read_text()
-          bootstrap_rendered = Path(sys.argv[3]).read_text()
-          platform_rbac = Path(sys.argv[4]).read_text()
-          bootstrap_source = Path(sys.argv[5]).read_text()
+          bootstrap_admission_rendered = Path(sys.argv[3]).read_text()
+          bootstrap_rbac_rendered = Path(sys.argv[4]).read_text()
+          platform_rbac = Path(sys.argv[5]).read_text()
+          bootstrap_source = Path(sys.argv[6]).read_text()
 
           def documents(text):
               return [part.strip() + "\n" for part in text.split("\n---\n") if part.strip()]
 
           def selected(text, kind):
-              matches = [part for part in documents(text) if f"kind: {kind}\n" in part and "name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in part]
+              matches = [part for part in documents(text) if re.search(rf"^kind: {re.escape(kind)}$", part, re.MULTILINE) and "name: capz-aster-prow-ai-dashboard-agent-sandbox-a33874cc" in part]
               assert len(matches) == 1
               return matches[0]
 
           for kind in ("ValidatingAdmissionPolicy", "ValidatingAdmissionPolicyBinding"):
               post = selected(postrendered, kind)
-              preadopted = selected(bootstrap_rendered, kind)
+              preadopted = selected(bootstrap_admission_rendered, kind)
+              assert post == preadopted
+              assert post.count("helm.sh/resource-policy: keep") == 1
+          for kind in ("Role", "RoleBinding"):
+              post = selected(postrendered, kind)
+              preadopted = selected(bootstrap_rbac_rendered, kind)
               assert post == preadopted
               assert post.count("helm.sh/resource-policy: keep") == 1
 
