@@ -5,3 +5,4 @@ resources:
   - runtimeclass.yaml
   - storageclass.yaml
   - flux-applier-rbac.yaml
+  - platform-execution-access.yaml

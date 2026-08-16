@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capz-aster-sandbox
+  labels:
+    helm.sh/chart: aster-platform-0.9.0-rc.1
+    app.kubernetes.io/name: prow-ai-dashboard-platform
+    app.kubernetes.io/instance: capz-aster-platform
+    app.kubernetes.io/version: v0.9.0-rc.1
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: prow-ai-dashboard-platform
+    prow-ai-dashboard/release: capz-aster
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+  annotations:
+    meta.helm.sh/release-name: capz-aster-platform
+    meta.helm.sh/release-namespace: capz-aster
+    helm.sh/resource-policy: keep
+    prow-ai-dashboard/runtime-class: aster-kata-vm-isolation
+    prow-ai-dashboard/agent-sandbox-version: v0.5.3
+    prow-ai-dashboard/network-policy-mode: cilium
+    prow-ai-dashboard/default-deny-policy-name: capz-aster-platform-prow-ai-dashboard-platform-execution-default-deny
+    prow-ai-dashboard/execution-policy-name: capz-aster-platform-prow-ai-dashboard-platform-execution-egress
+    prow-ai-dashboard/execution-policy-sha256: b7afae93e5915437e41d81c29107fceac3f60cbdf4dfa418117b2fcfd07cad8d
+    prow-ai-dashboard/platform-release: capz-aster-platform
+    prow-ai-dashboard/model-gateway-enabled: "false"
+    prow-ai-dashboard/agent-sandbox-manifest-sha256: 50f54b0e746376455ae6bb8b90b436bdd8798e1296cff0d72b6267bbeb858e3c
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capz-aster-platform-namespace-manager
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    resourceNames:
+      - capz-aster-sandbox
+    verbs:
+      - get
+      - update
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capz-aster-platform-namespace-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capz-aster-platform-namespace-manager
+subjects:
+  - kind: ServiceAccount
+    name: flux-applier
+    namespace: capz-aster
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: capz-aster-platform-applier
+  namespace: capz-aster-sandbox
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - limitranges
+      - resourcequotas
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumnetworkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capz-aster-platform-applier
+  namespace: capz-aster-sandbox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: capz-aster-platform-applier
+subjects:
+  - kind: ServiceAccount
+    name: flux-applier
+    namespace: capz-aster
