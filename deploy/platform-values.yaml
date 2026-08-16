@@ -12,6 +12,11 @@ execution:
       - proxy.golang.org
       - sum.golang.org
       - storage.googleapis.com
+      - api.githubcopilot.com
 
 modelGateway:
   enabled: false
+
+runtimeClass:
+  create: false
+  handler: ""

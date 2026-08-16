@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: capz-aster-platform-values
+  namespace: capz-aster
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+data:
+  values.yaml: |
+    application:
+      releaseName: capz-aster
+    execution:
+      namespace: capz-aster-sandbox
+      networkPolicy:
+        allowedFQDNs:
+          - github.com
+          - proxy.golang.org
+          - sum.golang.org
+          - storage.googleapis.com
+          - api.githubcopilot.com
+        mode: cilium
+      runtimeClassName: aster-kata-vm-isolation
+      workloadServiceAccountName: fix-workload
+    modelGateway:
+      enabled: false
+    runtimeClass:
+      create: false
+      handler: ""

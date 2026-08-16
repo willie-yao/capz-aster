@@ -36,12 +36,21 @@ jobs:
         run: |
           "$RUNNER_TEMP/aster" onboard doctor -project-dir .
 
-      - name: Check generated GitOps bundle
+      - name: Check generated application inputs
         shell: bash
         run: |
+          set -euo pipefail
+          # v0.9.0-rc.1 emits platform files only when application Fix is enabled.
+          "$RUNNER_TEMP/aster" kubernetes gitops render \
+            -project-dir . \
+            -output gitops-application-check \
+            -release capz-aster \
+            -namespace capz-aster \
+            -chart oci://ghcr.io/willie-yao/charts/aster \
+            -chart-version 0.9.0-rc.1
           "$RUNNER_TEMP/aster" kubernetes gitops check \
             -project-dir . \
-            -gitops-dir gitops \
+            -gitops-dir gitops-application-check \
             -release capz-aster \
             -namespace capz-aster \
             -chart oci://ghcr.io/willie-yao/charts/aster \
@@ -71,6 +80,20 @@ jobs:
             --set-file project.systemPrompt=prompts/system.md \
             "${skill_args[@]}" \
             > "$RUNNER_TEMP/render.yaml"
+
+      - name: Lint and render platform chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm pull oci://ghcr.io/willie-yao/charts/aster-platform \
+            --version 0.9.0-rc.1 \
+            --destination "$RUNNER_TEMP"
+          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
+            -f deploy/platform-values.yaml
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.1.tgz" \
+            --namespace capz-aster \
+            -f deploy/platform-values.yaml \
+            > "$RUNNER_TEMP/platform-render.yaml"
 
       - name: Enforce public read-only contract
         shell: bash
@@ -175,5 +198,21 @@ jobs:
           test "$(grep -Fc 'name: capz-aster-model' "$render")" -eq 3
           if grep -Eq 'ACTIONS_ENABLED|ANALYSIS_CORRECTIONS_ENABLED|BOT_TOKEN|ISSUE_TOKEN|FIX_TOKEN|AI_REASONING_EFFORT|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION' "$render"; then exit 1; fi
           if grep -Eq 'agent-sandbox-fix-executor|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$render"; then exit 1; fi
-          if grep -RIE --include='*.yaml' -- 'aster-platform|platform-chart' gitops/; then exit 1; fi
+          platform_render="$RUNNER_TEMP/platform-render.yaml"
+          test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform_render")" -eq 1
+          grep -Fq 'name: capz-aster-sandbox' "$platform_render"
+          test "$(grep -Ec '^kind:[[:space:]]*ResourceQuota[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*LimitRange[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*ServiceAccount[[:space:]]*$' "$platform_render")" -eq 1
+          grep -Fq 'automountServiceAccountToken: false' "$platform_render"
+          test "$(grep -Ec '^kind:[[:space:]]*NetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
+          test "$(grep -Ec '^kind:[[:space:]]*CiliumNetworkPolicy[[:space:]]*$' "$platform_render")" -eq 1
+          for host in github.com proxy.golang.org sum.golang.org storage.googleapis.com api.githubcopilot.com; do
+            grep -Fq "matchName: \"$host\"" "$platform_render"
+          done
+          if grep -Eq '^kind:[[:space:]]*(Secret|Deployment|Service)[[:space:]]*$' "$platform_render"; then exit 1; fi
+          grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
+          grep -Fq 'url: oci://ghcr.io/willie-yao/charts/aster-platform' gitops/sources/platform-chart.yaml
+          grep -Fq 'tag: "0.9.0-rc.1"' gitops/sources/platform-chart.yaml
+          if grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml; then exit 1; fi
           if grep -RIE --include='*.yaml' -- '^kind:[[:space:]]*Secret[[:space:]]*$' gitops/; then exit 1; fi
