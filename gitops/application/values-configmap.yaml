@@ -13,13 +13,6 @@ data:
       causalCritic:
         enabled: false
       fixRuntime:
-        allowedCommands:
-          - argv:
-              - git
-              - diff
-              - --cached
-              - --check
-            timeout: 1m
         caBundle:
           existingConfigMap: ""
           key: ""
@@ -33,8 +26,6 @@ data:
           digest: sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
-        maxFiles: 3
-        maxSteps: 30
         modelProvider:
           api: chat_completions
           auth:
@@ -47,9 +38,7 @@ data:
           publicCAPrivateDNS: false
           reasoningEffort: high
         namespace: capz-aster-sandbox
-        outputLimitBytes: 524288
         runtimeClassName: aster-kata-vm-isolation
-        timeout: 10m
         workloadServiceAccount:
           create: false
           name: fix-workload
@@ -84,11 +73,6 @@ data:
     networkPolicy:
       enabled: false
       ingress: []
-    orka:
-      agentAnalysisShadow:
-        enabled: false
-      fixRuntime:
-        enabled: false
     persistence:
       accessMode: ReadWriteMany
       enabled: true
@@ -1015,8 +999,6 @@ data:
       chat:
         correctionsEnabled: false
         enabled: true
-        sourceInvestigation:
-          enabled: false
       service:
         annotations:
           service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend

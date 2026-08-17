@@ -1,8 +1,8 @@
 global:
-  imageTag: v0.9.0-rc.1
+  imageTag: v0.9.0-rc.3
 image:
   repository: ghcr.io/willie-yao/aster
-  tag: v0.9.0-rc.1
+  tag: v0.9.0-rc.3
 mode: watch
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
@@ -31,11 +31,6 @@ fetcher:
   includePresubmits: false
 analysisRuntime:
   type: inprocess
-orka:
-  agentAnalysisShadow:
-    enabled: false
-  fixRuntime:
-    enabled: false
 agentSandbox:
   fixRuntime:
     enabled: true
@@ -47,7 +42,7 @@ agentSandbox:
       pullPolicy: IfNotPresent
     dashboardImage:
       repository: ghcr.io/willie-yao/aster/remote-fixer
-      tag: v0.9.0-rc.1
+      tag: v0.9.0-rc.3
       pullPolicy: IfNotPresent
     workloadServiceAccount:
       create: false
@@ -67,13 +62,6 @@ agentSandbox:
       existingConfigMap: ""
       key: ""
       sha256: ""
-    maxSteps: 30
-    maxFiles: 3
-    timeout: 10m
-    outputLimitBytes: 524288
-    allowedCommands:
-      - argv: [git, diff, --cached, --check]
-        timeout: 1m
   analyzer:
     enabled: false
   causalCritic:
@@ -82,8 +70,6 @@ server:
   chat:
     enabled: true
     correctionsEnabled: false
-    sourceInvestigation:
-      enabled: false
   actions:
     enabled: true
     mode: oauth
