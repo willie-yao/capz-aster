@@ -8,7 +8,7 @@ spec:
   provider: generic
   url: oci://ghcr.io/willie-yao/charts/aster
   ref:
-    tag: "0.9.0-rc.1"
+    tag: "0.9.0-rc.3"
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
