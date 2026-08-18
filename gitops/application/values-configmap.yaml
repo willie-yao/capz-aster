@@ -140,6 +140,9 @@ data:
           - scalability
           - other
     
+        pull_requests:
+          enabled: true
+    
         issues:
           enabled: false
           repo:
@@ -1000,6 +1003,9 @@ data:
       chat:
         correctionsEnabled: false
         enabled: true
+      extraEnv:
+        - name: PULL_REQUEST_ESCALATION_ENABLED
+          value: "true"
       service:
         annotations:
           service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend
