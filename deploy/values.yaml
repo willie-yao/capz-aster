@@ -75,6 +75,7 @@ server:
     mode: oauth
     admins:
       - willie-yao
+      - jackfrancis
     oauth:
       clientId: Ov23liNCuc2721wqKaDw
       redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback
