@@ -20,7 +20,7 @@ data:
         dashboardImage:
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: v0.9.0-rc.3
+          tag: v0.9.0-rc.4
         enabled: true
         image:
           digest: sha256:79be973ab5e541118290007241315446301cf586a29a576114ef338b31f649f0
@@ -63,10 +63,10 @@ data:
       watchInterval: 5m
       workers: 5
     global:
-      imageTag: v0.9.0-rc.3
+      imageTag: v0.9.0-rc.4
     image:
       repository: ghcr.io/willie-yao/aster
-      tag: v0.9.0-rc.3
+      tag: v0.9.0-rc.4
     ingress:
       enabled: false
     mode: watch
