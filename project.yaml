@@ -56,6 +56,9 @@ category_display_order:
   - scalability
   - other
 
+pull_requests:
+  enabled: true
+
 issues:
   enabled: false
   repo:

@@ -85,6 +85,11 @@ server:
     publicOriginAcknowledged: true
     annotations:
       service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend
+  # PULL_REQUEST_ESCALATION_ENABLED has no dedicated chart value, so it goes
+  # through extraEnv. It is not on the reserved-name blocklist.
+  extraEnv:
+    - name: PULL_REQUEST_ESCALATION_ENABLED
+      value: "true"
 ingress:
   enabled: false
 networkPolicy:
