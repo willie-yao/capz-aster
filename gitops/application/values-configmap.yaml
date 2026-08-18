@@ -990,6 +990,7 @@ data:
       actions:
         admins:
           - willie-yao
+          - jackfrancis
         enabled: true
         mode: oauth
         oauth:
