@@ -25,8 +25,8 @@ jobs:
           set -euo pipefail
           curl -fsSL \
             -o "$RUNNER_TEMP/aster" \
-            https://github.com/willie-yao/aster/releases/download/v0.9.0-rc.7/aster-v0.9.0-rc.7-linux-amd64
-          echo "56d78414062490caeb873fd52074537a413a129a1a0541a661a1edf95122e098  $RUNNER_TEMP/aster" | sha256sum -c -
+            https://github.com/willie-yao/aster/releases/download/v0.9.0-rc.8/aster-v0.9.0-rc.8-linux-amd64
+          echo "94fefaa06ca85ee6331597cc09f4bf33db65b4065fa04e5f33ea3f20a86a95e9  $RUNNER_TEMP/aster" | sha256sum -c -
           chmod 0755 "$RUNNER_TEMP/aster"
 
       - name: Verify consumer checksums
@@ -52,17 +52,17 @@ jobs:
             -execution-namespace capz-aster-sandbox \
             -chart oci://ghcr.io/willie-yao/charts/aster \
             -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
-            -chart-version 0.9.0-rc.7
+            -chart-version 0.9.0-rc.8
 
       - name: Lint and render charts
         shell: bash
         run: |
           set -euo pipefail
           helm pull oci://ghcr.io/willie-yao/charts/aster \
-            --version 0.9.0-rc.7 \
+            --version 0.9.0-rc.8 \
             --destination "$RUNNER_TEMP"
           helm pull oci://ghcr.io/willie-yao/charts/aster-platform \
-            --version 0.9.0-rc.7 \
+            --version 0.9.0-rc.8 \
             --destination "$RUNNER_TEMP"
           python3 - <<'PY'
           from pathlib import Path
@@ -77,17 +77,17 @@ jobs:
           PY
           mv application-values.yaml "$RUNNER_TEMP/application-values.yaml"
           mv platform-values.yaml "$RUNNER_TEMP/platform-values.yaml"
-          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.7.tgz" -f "$RUNNER_TEMP/application-values.yaml"
-          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.7.tgz" -f "$RUNNER_TEMP/platform-values.yaml"
-          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.7.tgz" \
+          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.8.tgz" -f "$RUNNER_TEMP/application-values.yaml"
+          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.8.tgz" -f "$RUNNER_TEMP/platform-values.yaml"
+          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.8.tgz" \
             --namespace capz-aster \
             -f "$RUNNER_TEMP/application-values.yaml" \
             > "$RUNNER_TEMP/application-render.yaml"
-          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.7.tgz" \
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.8.tgz" \
             --namespace capz-aster \
             -f "$RUNNER_TEMP/platform-values.yaml" \
             > "$RUNNER_TEMP/platform-render.yaml"
-          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.7.tgz" \
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.8.tgz" \
             --namespace capz-aster \
             -f deploy/platform-values.yaml \
             > "$RUNNER_TEMP/platform-source-render.yaml"
@@ -131,11 +131,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.7' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.8' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:71a63bc3b75d6ed28191139d4f7b8a49a0fe45c3e874f1f80897d5e09bd254b3"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:1ee30e185bf7d3cb2e4fb776af25fd913265849d6df3d5918a3b40dd3f27d9d1"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -158,8 +158,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.7" in server
-          assert "image: ghcr.io/willie-yao/aster:v0.9.0-rc.7" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.8" in server
+          assert "image: ghcr.io/willie-yao/aster:v0.9.0-rc.8" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
