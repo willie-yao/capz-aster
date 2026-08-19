@@ -20,10 +20,10 @@ data:
         dashboardImage:
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: v0.9.0-rc.5
+          tag: v0.9.0-rc.6
         enabled: true
         image:
-          digest: sha256:4e9a4090c26675a2c6d5d8f5ea5150f8c08bfd809a63930dac69f0de9c8dae73
+          digest: sha256:57fa56637e5b81c34396629ef2269566c0e7c043107a6dd355155283be03cc25
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
@@ -63,10 +63,10 @@ data:
       watchInterval: 5m
       workers: 5
     global:
-      imageTag: v0.9.0-rc.5
+      imageTag: v0.9.0-rc.6
     image:
       repository: ghcr.io/willie-yao/aster
-      tag: v0.9.0-rc.5
+      tag: v0.9.0-rc.6
     ingress:
       enabled: false
     mode: watch
@@ -142,6 +142,16 @@ data:
     
         pull_requests:
           enabled: true
+          # Posts one comment on each newly opened CAPZ pull request linking to its
+          # triage page. No GitHub App credentials are mounted, so the pass stops at the
+          # credential check and posts nothing. Once ASTER_APP_ID and
+          # ASTER_APP_PRIVATE_KEY are mounted this logs the bodies it would send, and
+          # setting dry_run to false is a second, separate step before any contributor
+          # sees a comment.
+          comment:
+            enabled: true
+            dry_run: true
+            max_per_pass: 10
     
         issues:
           enabled: false
