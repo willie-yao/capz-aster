@@ -44,7 +44,6 @@ data:
           name: fix-workload
     ai:
       api: chat_completions
-      contextWindowTokens: 250000
       enabled: true
       endpoint: https://api.githubcopilot.com/chat/completions
       existingSecret: capz-aster-model

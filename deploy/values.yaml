@@ -19,7 +19,6 @@ ai:
   endpoint: https://api.githubcopilot.com/chat/completions
   model: claude-sonnet-4.6
   reasoningEffort: ""
-  contextWindowTokens: 250000
   existingSecret: capz-aster-model
   tokenSecretKey: AI_TOKEN
 fetcher:
