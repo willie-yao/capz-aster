@@ -1042,6 +1042,12 @@ data:
               name: capz-aster-smtp
       pullRequestEscalation:
         enabled: true
+      remediationInvestigation:
+        enabled: true
+        fixPreview:
+          enabled: true
+        maxOperations: 256
+        timeout: 10m
       service:
         annotations:
           service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend

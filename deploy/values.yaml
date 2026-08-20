@@ -99,6 +99,12 @@ server:
       service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend
   pullRequestEscalation:
     enabled: true
+  remediationInvestigation:
+    enabled: true
+    timeout: 10m
+    maxOperations: 256
+    fixPreview:
+      enabled: true
 ingress:
   enabled: false
 networkPolicy:

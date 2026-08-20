@@ -164,6 +164,11 @@ jobs:
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
+          # Causal remediation investigation and its Fix PR preview are served
+          # on demand behind admin auth, so they stay off the scheduled worker.
+          assert server.count("- name: CAUSAL_REMEDIATION_INVESTIGATION_ENABLED") == 1
+          assert server.count("- name: CAUSAL_REMEDIATION_FIX_PREVIEW_ENABLED") == 1
+          assert "CAUSAL_REMEDIATION" not in worker
           PY
 
           test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform")" -eq 1
@@ -177,7 +182,7 @@ jobs:
           printf '%s\n' api.githubcopilot.com github.com proxy.golang.org storage.googleapis.com sum.golang.org > "$RUNNER_TEMP/expected-platform-hosts.txt"
           cmp "$RUNNER_TEMP/expected-platform-hosts.txt" "$RUNNER_TEMP/platform-hosts.txt"
 
-          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
+          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
           grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
           grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml
           grep -Fq 'name: capz-aster-platform' gitops/application/helmrelease.yaml
