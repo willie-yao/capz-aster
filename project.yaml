@@ -77,6 +77,21 @@ issues:
   labels:
     - ai-proposed-fix-demo
 
+notifications:
+  email:
+    enabled: true
+    # Pattern-level mail with inert Review issue draft and Review fix proposal
+    # links. Safe here because the server runs with actions enabled behind OAuth.
+    action_links: true
+    from: "CAPZ Aster <prow.ai.dashboard@gmail.com>"
+    to:
+      - prow.ai.dashboard@gmail.com
+    smtp:
+      host: smtp.gmail.com
+      port: 587
+      username: prow.ai.dashboard@gmail.com
+      tls: starttls
+
 ai:
   api: chat_completions
   endpoint: https://api.githubcopilot.com/chat/completions

@@ -57,6 +57,12 @@ data:
       type: inprocess
     fetcher:
       buildsPerJob: 10
+      extraEnv:
+        - name: EMAIL_SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: capz-aster-smtp
       includePresubmits: false
       reconcileInterval: 1h
       timeout: 6h
@@ -160,6 +166,21 @@ data:
             name: cluster-api-provider-azure
           labels:
             - ai-proposed-fix-demo
+    
+        notifications:
+          email:
+            enabled: true
+            # Pattern-level mail with inert Review issue draft and Review fix proposal
+            # links. Safe here because the server runs with actions enabled behind OAuth.
+            action_links: true
+            from: "CAPZ Aster <prow.ai.dashboard@gmail.com>"
+            to:
+              - prow.ai.dashboard@gmail.com
+            smtp:
+              host: smtp.gmail.com
+              port: 587
+              username: prow.ai.dashboard@gmail.com
+              tls: starttls
     
         ai:
           api: chat_completions
@@ -1013,6 +1034,12 @@ data:
       chat:
         correctionsEnabled: false
         enabled: true
+      extraEnv:
+        - name: EMAIL_SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: capz-aster-smtp
       pullRequestEscalation:
         enabled: true
       service:
