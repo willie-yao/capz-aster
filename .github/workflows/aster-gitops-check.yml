@@ -147,6 +147,7 @@ jobs:
 
           python3 - "$application" <<'PY'
           from pathlib import Path
+          import re
           import sys
 
           documents = [part.strip() + "\n" for part in Path(sys.argv[1]).read_text().split("\n---\n") if part.strip()]
@@ -164,11 +165,31 @@ jobs:
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
-          # Causal remediation investigation and its Fix PR preview are served
-          # on demand behind admin auth, so they stay off the scheduled worker.
-          assert server.count("- name: CAUSAL_REMEDIATION_INVESTIGATION_ENABLED") == 1
-          assert server.count("- name: CAUSAL_REMEDIATION_FIX_PREVIEW_ENABLED") == 1
+          # Causal remediation investigation and its Fix PR preview are served on
+          # demand behind admin auth, so they stay off the scheduled worker. This
+          # also covers the non-gate TIMEOUT and MAX_OPERATIONS variables, which
+          # the feature-gate check does not match.
           assert "CAUSAL_REMEDIATION" not in worker
+          # The exact feature gates this deployment turns on, in rendered output.
+          # The engine image is bumped independently of the pinned chart, so a
+          # chart default flipping to true, or a new gate the chart renders,
+          # changes this set and fails here rather than switching a feature on
+          # unnoticed. A gate the engine reads without the chart rendering an env
+          # var is not visible to this check. Dropping set() also rejects a
+          # duplicated gate, whose effective value would depend on ordering.
+          # Enabling a feature means adding its gate here in the same change.
+          def gates(rendered):
+              return sorted(re.findall(r"""- name: ["']?([A-Z][A-Z0-9_]*_ENABLED)["']?\b""", rendered))
+
+          assert gates(server) == [
+              "ACTIONS_ENABLED",
+              "ANALYSIS_CHAT_ENABLED",
+              "CAUSAL_REMEDIATION_FIX_PREVIEW_ENABLED",
+              "CAUSAL_REMEDIATION_INVESTIGATION_ENABLED",
+              "HSTS_ENABLED",
+              "PULL_REQUEST_ESCALATION_ENABLED",
+          ], gates(server)
+          assert gates(worker) == [], gates(worker)
           PY
 
           test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform")" -eq 1
@@ -182,7 +203,10 @@ jobs:
           printf '%s\n' api.githubcopilot.com github.com proxy.golang.org storage.googleapis.com sum.golang.org > "$RUNNER_TEMP/expected-platform-hosts.txt"
           cmp "$RUNNER_TEMP/expected-platform-hosts.txt" "$RUNNER_TEMP/platform-hosts.txt"
 
-          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
+          # Non-gate leftovers the feature-gate check above cannot see: ORKA_ is a
+          # prefix rather than an _ENABLED gate, and the component labels are not
+          # environment variables at all.
+          if grep -Eq 'ORKA_|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
           grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
           grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml
           grep -Fq 'name: capz-aster-platform' gitops/application/helmrelease.yaml
