@@ -20,10 +20,10 @@ data:
         dashboardImage:
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: sha-c9cf166
+          tag: sha-ea3a45f
         enabled: true
         image:
-          digest: sha256:eb84dad225d40b03fc528d71bd0fdfb8191b749c5405ccecdf550aadd7f6d30c
+          digest: sha256:fe866267816ed3222dad5bab6334741731e17d79830263e4c83cb9b08893000b
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
@@ -69,10 +69,10 @@ data:
       watchInterval: 5m
       workers: 5
     global:
-      imageTag: sha-c9cf166
+      imageTag: sha-ea3a45f
     image:
       repository: ghcr.io/willie-yao/aster
-      tag: sha-c9cf166
+      tag: sha-ea3a45f
     ingress:
       enabled: false
     mode: watch
@@ -1042,6 +1042,12 @@ data:
               name: capz-aster-smtp
       pullRequestEscalation:
         enabled: true
+      remediationInvestigation:
+        enabled: true
+        fixPreview:
+          enabled: true
+        maxOperations: 256
+        timeout: 10m
       service:
         annotations:
           service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend

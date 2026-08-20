@@ -131,11 +131,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-c9cf166' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-ea3a45f' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:eb84dad225d40b03fc528d71bd0fdfb8191b749c5405ccecdf550aadd7f6d30c"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:fe866267816ed3222dad5bab6334741731e17d79830263e4c83cb9b08893000b"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -158,12 +158,17 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-c9cf166" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-c9cf166" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-ea3a45f" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-ea3a45f" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
+          # Causal remediation investigation and its Fix PR preview are served
+          # on demand behind admin auth, so they stay off the scheduled worker.
+          assert server.count("- name: CAUSAL_REMEDIATION_INVESTIGATION_ENABLED") == 1
+          assert server.count("- name: CAUSAL_REMEDIATION_FIX_PREVIEW_ENABLED") == 1
+          assert "CAUSAL_REMEDIATION" not in worker
           PY
 
           test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform")" -eq 1
@@ -177,7 +182,7 @@ jobs:
           printf '%s\n' api.githubcopilot.com github.com proxy.golang.org storage.googleapis.com sum.golang.org > "$RUNNER_TEMP/expected-platform-hosts.txt"
           cmp "$RUNNER_TEMP/expected-platform-hosts.txt" "$RUNNER_TEMP/platform-hosts.txt"
 
-          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|REMEDIATION_INVESTIGATION_ENABLED|CAUSAL_REMEDIATION|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
+          if grep -Eq 'ANALYSIS_CORRECTIONS_ENABLED|ORKA_|ANALYSIS_SOURCE_INVESTIGATION_ENABLED|SOURCE_INVESTIGATION_ENABLED|app.kubernetes.io/component:[[:space:]]*(orka|model-gateway)' "$application" "$platform"; then exit 1; fi
           grep -Fq 'name: capz-aster-platform' gitops/platform/helmrelease.yaml
           grep -Fq 'dependsOn:' gitops/application/helmrelease.yaml
           grep -Fq 'name: capz-aster-platform' gitops/application/helmrelease.yaml
