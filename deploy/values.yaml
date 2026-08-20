@@ -29,6 +29,12 @@ fetcher:
   watchInterval: 5m
   reconcileInterval: 1h
   includePresubmits: false
+  extraEnv:
+    - name: EMAIL_SMTP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: capz-aster-smtp
+          key: password
 analysisRuntime:
   type: inprocess
 agentSandbox:
@@ -70,6 +76,12 @@ server:
   chat:
     enabled: true
     correctionsEnabled: false
+  extraEnv:
+    - name: EMAIL_SMTP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: capz-aster-smtp
+          key: password
   actions:
     enabled: true
     mode: oauth
