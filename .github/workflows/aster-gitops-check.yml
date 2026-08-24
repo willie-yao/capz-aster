@@ -131,11 +131,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-0faa704' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-2534016' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:84f3fc0f26bafe4c91f7c02e8adc2f62a044fd192ef3fe46960334df59c395af"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:bb641ef2bfa40b0926fec945c5b47c948b68848cbb6df0312149ce961e0db701"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -159,8 +159,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-0faa704" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-0faa704" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-2534016" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-2534016" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
