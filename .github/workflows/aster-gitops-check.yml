@@ -19,15 +19,17 @@ jobs:
 
       - uses: azure/setup-kubectl@v4
 
-      - name: Download pinned Aster CLI
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build pinned Aster CLI
         shell: bash
+        env:
+          GOBIN: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          curl -fsSL \
-            -o "$RUNNER_TEMP/aster" \
-            https://github.com/willie-yao/aster/releases/download/v0.9.0-rc.8/aster-v0.9.0-rc.8-linux-amd64
-          echo "94fefaa06ca85ee6331597cc09f4bf33db65b4065fa04e5f33ea3f20a86a95e9  $RUNNER_TEMP/aster" | sha256sum -c -
-          chmod 0755 "$RUNNER_TEMP/aster"
+          go install github.com/willie-yao/aster/backend/cmd/aster@710da6347b414e20a5f977a5c3550c622740f91b
 
       - name: Verify consumer checksums
         shell: bash
@@ -131,7 +133,7 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-641a0b7' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-710da63' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
@@ -159,8 +161,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-641a0b7" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-641a0b7" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-710da63" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-710da63" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
