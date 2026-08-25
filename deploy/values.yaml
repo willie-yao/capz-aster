@@ -74,6 +74,7 @@ agentSandbox:
 server:
   chat:
     enabled: true
+    timeout: 10m
     correctionsEnabled: false
   extraEnv:
     - name: EMAIL_SMTP_PASSWORD

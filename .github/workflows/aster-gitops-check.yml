@@ -185,6 +185,8 @@ jobs:
               "PULL_REQUEST_ESCALATION_ENABLED",
           ], gates(server)
           assert gates(worker) == [], gates(worker)
+          assert server.count("- name: ANALYSIS_CHAT_TIMEOUT") == 1
+          assert re.search(r'- name: ANALYSIS_CHAT_TIMEOUT\n\s+value: "10m"', server)
           PY
 
           test "$(grep -Ec '^kind:[[:space:]]*Namespace[[:space:]]*$' "$platform")" -eq 1
