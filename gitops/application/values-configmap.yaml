@@ -20,10 +20,10 @@ data:
         dashboardImage:
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: sha-42e7852
+          tag: sha-fe28fdd
         enabled: true
         image:
-          digest: sha256:4a08e2fa17ccc87d9f28e1bcfeec740b5747288687a0691db6ea8b88b232fa3b
+          digest: sha256:11df5c4cd744cd23b81136ebfc83a840527fcf19ab39a89ad4686ef97717049e
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
@@ -68,10 +68,10 @@ data:
       watchInterval: 5m
       workers: 5
     global:
-      imageTag: sha-42e7852
+      imageTag: sha-fe28fdd
     image:
       repository: ghcr.io/willie-yao/aster
-      tag: sha-42e7852
+      tag: sha-fe28fdd
     ingress:
       enabled: false
     mode: watch
