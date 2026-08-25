@@ -1033,6 +1033,7 @@ data:
       chat:
         correctionsEnabled: false
         enabled: true
+        timeout: 10m
       extraEnv:
         - name: EMAIL_SMTP_PASSWORD
           valueFrom:
