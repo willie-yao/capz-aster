@@ -1,8 +1,8 @@
 global:
-  imageTag: sha-dc3d039
+  imageTag: sha-42e7852
 image:
   repository: ghcr.io/willie-yao/aster
-  tag: sha-dc3d039
+  tag: sha-42e7852
 mode: watch
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
@@ -43,11 +43,11 @@ agentSandbox:
     runtimeClassName: aster-kata-vm-isolation
     image:
       repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
-      digest: sha256:02582b8bc2fb8e4e5c99216037e72c2dfabf52f7b0f712233283991297949865
+      digest: sha256:4a08e2fa17ccc87d9f28e1bcfeec740b5747288687a0691db6ea8b88b232fa3b
       pullPolicy: IfNotPresent
     dashboardImage:
       repository: ghcr.io/willie-yao/aster/remote-fixer
-      tag: sha-dc3d039
+      tag: sha-42e7852
       pullPolicy: IfNotPresent
     workloadServiceAccount:
       create: false
