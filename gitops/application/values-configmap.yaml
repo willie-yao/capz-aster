@@ -20,7 +20,7 @@ data:
         dashboardImage:
           pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: sha-641a0b7
+          tag: sha-710da63
         enabled: true
         image:
           digest: sha256:e3f928c7ed49a858e881e6b380e2fedbe2eb3ed2e265f9ee2bced94782437f06
@@ -62,16 +62,15 @@ data:
             secretKeyRef:
               key: password
               name: capz-aster-smtp
-      includePresubmits: false
       reconcileInterval: 1h
       timeout: 6h
       watchInterval: 5m
       workers: 5
     global:
-      imageTag: sha-641a0b7
+      imageTag: sha-710da63
     image:
       repository: ghcr.io/willie-yao/aster
-      tag: sha-641a0b7
+      tag: sha-710da63
     ingress:
       enabled: false
     mode: watch
@@ -91,18 +90,13 @@ data:
         name: CAPZ Aster
         short_name: CAPZ
     
-        testgrid:
-          dashboard: sig-cluster-lifecycle-cluster-api-provider-azure
-    
         discovery:
-          source: testgrid
+          testgrid_dashboard: sig-cluster-lifecycle-cluster-api-provider-azure
     
         storage:
-          provider: gcs
           bucket: kubernetes-ci-logs
     
         branding:
-          title: CAPZ Aster Prow Dashboard
           base_path: /
           site_url: "https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net"
           source_repo:
@@ -160,9 +154,6 @@ data:
     
         issues:
           enabled: false
-          repo:
-            owner: kubernetes-sigs
-            name: cluster-api-provider-azure
           labels:
             - ai-proposed-fix-demo
     
@@ -203,18 +194,10 @@ data:
           tools:
             - filesystem
             - k8s
-          source_repo:
-            owner: kubernetes-sigs
-            name: cluster-api-provider-azure
           fix_prs:
             enabled: true
-            repo:
-              owner: kubernetes-sigs
-              name: cluster-api-provider-azure
-            fork: true
             author_name: William Yao
             author_email: william2000yao@gmail.com
-            max_files: 3
             labels:
               - ai-proposed-fix-demo
             critique_retries: 0
