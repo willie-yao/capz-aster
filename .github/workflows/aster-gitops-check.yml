@@ -131,11 +131,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-fe28fdd' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-ce17203' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:11df5c4cd744cd23b81136ebfc83a840527fcf19ab39a89ad4686ef97717049e"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:d0d9547ece513a51425a104f555a13e8d0bdc4b2bee008f51b54c7ad17480cbb"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -159,16 +159,13 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-fe28fdd" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-fe28fdd" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-ce17203" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-ce17203" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
           assert "secretKeyRef:\n                  name: capz-aster-fix-model" not in server
-          # Causal remediation investigation and its Fix PR preview are served on
-          # demand behind admin auth, so they stay off the scheduled worker. This
-          # also covers the non-gate TIMEOUT and MAX_OPERATIONS variables, which
-          # the feature-gate check does not match.
+          assert "CAUSAL_REMEDIATION" not in server
           assert "CAUSAL_REMEDIATION" not in worker
           # The exact feature gates this deployment turns on, in rendered output.
           # The engine image is bumped independently of the pinned chart, so a
@@ -184,8 +181,6 @@ jobs:
           assert gates(server) == [
               "ACTIONS_ENABLED",
               "ANALYSIS_CHAT_ENABLED",
-              "CAUSAL_REMEDIATION_FIX_PREVIEW_ENABLED",
-              "CAUSAL_REMEDIATION_INVESTIGATION_ENABLED",
               "HSTS_ENABLED",
               "PULL_REQUEST_ESCALATION_ENABLED",
           ], gates(server)
