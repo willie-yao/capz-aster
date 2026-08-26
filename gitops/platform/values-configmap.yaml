@@ -21,8 +21,3 @@ data:
         mode: cilium
       runtimeClassName: aster-kata-vm-isolation
       workloadServiceAccountName: fix-workload
-    modelGateway:
-      enabled: false
-    runtimeClass:
-      create: false
-      handler: ""

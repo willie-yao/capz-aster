@@ -1,40 +1,23 @@
 global:
-  imageTag: sha-9c9c030
-image:
-  repository: ghcr.io/willie-yao/aster
-  tag: sha-9c9c030
-mode: watch
+  imageTag: sha-85f9448
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
 persistence:
-  enabled: true
-  existingClaim: ""
   storageClass: capz-aster-rwx
-  accessMode: ReadWriteMany
   size: 100Gi
-  retain: true
 ai:
   enabled: true
-  api: chat_completions
   endpoint: https://api.githubcopilot.com/chat/completions
   model: claude-sonnet-4.6
-  reasoningEffort: ""
   existingSecret: capz-aster-model
-  tokenSecretKey: AI_TOKEN
 fetcher:
-  buildsPerJob: 10
-  workers: 5
   timeout: 6h
-  watchInterval: 5m
-  reconcileInterval: 1h
   extraEnv:
     - name: EMAIL_SMTP_PASSWORD
       valueFrom:
         secretKeyRef:
           name: capz-aster-smtp
           key: password
-analysisRuntime:
-  type: inprocess
 agentSandbox:
   fixRuntime:
     enabled: true
@@ -43,17 +26,9 @@ agentSandbox:
     image:
       repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
       digest: sha256:fcb6a38525ba86aa9f23ae83e6a76f94b456826d139b1595e453a8bb4dc9136e
-      pullPolicy: IfNotPresent
-    dashboardImage:
-      repository: ghcr.io/willie-yao/aster/remote-fixer
-      tag: sha-9c9c030
-      pullPolicy: IfNotPresent
     workloadServiceAccount:
-      create: false
       name: fix-workload
     modelProvider:
-      credentialMode: direct
-      api: chat_completions
       endpoint: https://api.githubcopilot.com/chat/completions
       model: claude-sonnet-4.6
       reasoningEffort: high
@@ -61,20 +36,10 @@ agentSandbox:
         type: bearer
         existingSecret: capz-aster-fix-model
         tokenKey: AI_TOKEN
-      publicCAPrivateDNS: false
-    caBundle:
-      existingConfigMap: ""
-      key: ""
-      sha256: ""
-  analyzer:
-    enabled: false
-  causalCritic:
-    enabled: false
 server:
   chat:
     enabled: true
     timeout: 10m
-    correctionsEnabled: false
   extraEnv:
     - name: EMAIL_SMTP_PASSWORD
       valueFrom:
@@ -83,7 +48,6 @@ server:
           key: password
   actions:
     enabled: true
-    mode: oauth
     admins:
       - willie-yao
       - jackfrancis
@@ -98,8 +62,3 @@ server:
       service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend
   pullRequestEscalation:
     enabled: true
-ingress:
-  enabled: false
-networkPolicy:
-  enabled: false
-  ingress: []
