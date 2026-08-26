@@ -8,80 +8,41 @@ metadata:
 data:
   values.yaml: |
     agentSandbox:
-      analyzer:
-        enabled: false
-      causalCritic:
-        enabled: false
       fixRuntime:
-        caBundle:
-          existingConfigMap: ""
-          key: ""
-          sha256: ""
-        dashboardImage:
-          pullPolicy: IfNotPresent
-          repository: ghcr.io/willie-yao/aster/remote-fixer
-          tag: sha-9c9c030
         enabled: true
         image:
           digest: sha256:fcb6a38525ba86aa9f23ae83e6a76f94b456826d139b1595e453a8bb4dc9136e
-          pullPolicy: IfNotPresent
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
-          api: chat_completions
           auth:
             existingSecret: capz-aster-fix-model
             tokenKey: AI_TOKEN
             type: bearer
-          credentialMode: direct
           endpoint: https://api.githubcopilot.com/chat/completions
           model: claude-sonnet-4.6
-          publicCAPrivateDNS: false
           reasoningEffort: high
         namespace: capz-aster-sandbox
         runtimeClassName: aster-kata-vm-isolation
         workloadServiceAccount:
-          create: false
           name: fix-workload
     ai:
-      api: chat_completions
       enabled: true
       endpoint: https://api.githubcopilot.com/chat/completions
       existingSecret: capz-aster-model
       model: claude-sonnet-4.6
-      reasoningEffort: ""
-      tokenSecretKey: AI_TOKEN
     analysisCache:
       generation: capz-aster-v09rc1-sonnet46-20260815
-    analysisRuntime:
-      type: inprocess
     fetcher:
-      buildsPerJob: 10
       extraEnv:
         - name: EMAIL_SMTP_PASSWORD
           valueFrom:
             secretKeyRef:
               key: password
               name: capz-aster-smtp
-      reconcileInterval: 1h
       timeout: 6h
-      watchInterval: 5m
-      workers: 5
     global:
-      imageTag: sha-9c9c030
-    image:
-      repository: ghcr.io/willie-yao/aster
-      tag: sha-9c9c030
-    ingress:
-      enabled: false
-    mode: watch
-    networkPolicy:
-      enabled: false
-      ingress: []
+      imageTag: sha-85f9448
     persistence:
-      accessMode: ReadWriteMany
-      enabled: true
-      existingClaim: ""
-      retain: true
       size: 100Gi
       storageClass: capz-aster-rwx
     project:
@@ -141,16 +102,6 @@ data:
     
         pull_requests:
           enabled: true
-          # Posts one comment on each newly opened CAPZ pull request linking to its
-          # triage page. No GitHub App credentials are mounted, so the pass stops at the
-          # credential check and posts nothing. Once ASTER_APP_ID and
-          # ASTER_APP_PRIVATE_KEY are mounted this logs the bodies it would send, and
-          # setting dry_run to false is a second, separate step before any contributor
-          # sees a comment.
-          comment:
-            enabled: true
-            dry_run: true
-            max_per_pass: 10
     
         issues:
           enabled: false
@@ -1008,13 +959,11 @@ data:
           - willie-yao
           - jackfrancis
         enabled: true
-        mode: oauth
         oauth:
           clientId: Ov23liNCuc2721wqKaDw
           existingSecret: capz-aster-auth
           redirectUrl: https://capz-aster-99e3d335-c8fva4csbpcuh2e8.b01.azurefd.net/api/auth/callback
       chat:
-        correctionsEnabled: false
         enabled: true
         timeout: 10m
       extraEnv:

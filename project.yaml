@@ -53,16 +53,6 @@ category_display_order:
 
 pull_requests:
   enabled: true
-  # Posts one comment on each newly opened CAPZ pull request linking to its
-  # triage page. No GitHub App credentials are mounted, so the pass stops at the
-  # credential check and posts nothing. Once ASTER_APP_ID and
-  # ASTER_APP_PRIVATE_KEY are mounted this logs the bodies it would send, and
-  # setting dry_run to false is a second, separate step before any contributor
-  # sees a comment.
-  comment:
-    enabled: true
-    dry_run: true
-    max_per_pass: 10
 
 issues:
   enabled: false
