@@ -3,10 +3,10 @@ kind: Namespace
 metadata:
   name: capz-aster-sandbox
   labels:
-    helm.sh/chart: aster-platform-0.9.0-rc.11
+    helm.sh/chart: aster-platform-0.9.0-rc.12
     app.kubernetes.io/name: prow-ai-dashboard-platform
     app.kubernetes.io/instance: capz-aster-platform
-    app.kubernetes.io/version: v0.9.0-rc.11
+    app.kubernetes.io/version: v0.9.0-rc.12
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: prow-ai-dashboard-platform
     prow-ai-dashboard/release: capz-aster
