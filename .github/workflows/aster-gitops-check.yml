@@ -162,7 +162,7 @@ jobs:
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
           assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-781ffe3" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-a6d7535" in worker
+          assert "image: ghcr.io/willie-yao/aster:sha-781ffe3" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
