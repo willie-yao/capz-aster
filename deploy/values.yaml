@@ -1,5 +1,5 @@
 global:
-  imageTag: sha-4c5e66a
+  imageTag: sha-781ffe3
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
 persistence:
