@@ -11,7 +11,7 @@ data:
       fixRuntime:
         enabled: true
         image:
-          digest: sha256:407f78dd6aa7edf0e1c404d39f65d77fb044523265e00403a90f43cbb3825860
+          digest: sha256:458ba75465030106920d85813727489e780ac091659b5733a9f1eac774a849dc
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
           auth:
@@ -30,6 +30,7 @@ data:
       enabled: true
       endpoint: https://api.githubcopilot.com/responses
       existingSecret: capz-aster-model
+      githubReadTokenSecretName: capz-aster-model
       model: gpt-5.6-sol
     analysisCache:
       generation: capz-aster-v09rc1-sonnet46-20260815
@@ -42,9 +43,7 @@ data:
               name: capz-aster-smtp
       timeout: 6h
     global:
-      imageTag: sha-781ffe3
-    image:
-      tag: sha-a6d7535
+      imageTag: v0.9.0-rc.13
     persistence:
       size: 100Gi
       storageClass: capz-aster-rwx
@@ -127,10 +126,6 @@ data:
               tls: starttls
     
         ai:
-          api: responses
-          endpoint: https://api.githubcopilot.com/responses
-          model: gpt-5.6-sol
-          cache_generation: capz-aster-v09rc1-sonnet46-20260815
           usage:
             pricing:
               currency: USD
