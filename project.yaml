@@ -75,10 +75,6 @@ notifications:
       tls: starttls
 
 ai:
-  api: responses
-  endpoint: https://api.githubcopilot.com/responses
-  model: gpt-5.6-sol
-  cache_generation: capz-aster-v09rc1-sonnet46-20260815
   usage:
     pricing:
       currency: USD

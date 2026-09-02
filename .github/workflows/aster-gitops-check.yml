@@ -29,7 +29,7 @@ jobs:
           GOBIN: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          go install github.com/willie-yao/aster/backend/cmd/aster@9388eb057eba96b7bc9383372ca9b7b1e5988f96
+          go install github.com/willie-yao/aster/backend/cmd/aster@5812153b38f076447165633d41957c5ef3dd7a36
 
       - name: Verify consumer checksums
         shell: bash
@@ -54,17 +54,17 @@ jobs:
             -execution-namespace capz-aster-sandbox \
             -chart oci://ghcr.io/willie-yao/charts/aster \
             -platform-chart oci://ghcr.io/willie-yao/charts/aster-platform \
-            -chart-version 0.9.0-rc.12
+            -chart-version 0.9.0-rc.13
 
       - name: Lint and render charts
         shell: bash
         run: |
           set -euo pipefail
           helm pull oci://ghcr.io/willie-yao/charts/aster \
-            --version 0.9.0-rc.12 \
+            --version 0.9.0-rc.13 \
             --destination "$RUNNER_TEMP"
           helm pull oci://ghcr.io/willie-yao/charts/aster-platform \
-            --version 0.9.0-rc.12 \
+            --version 0.9.0-rc.13 \
             --destination "$RUNNER_TEMP"
           python3 - <<'PY'
           from pathlib import Path
@@ -79,17 +79,17 @@ jobs:
           PY
           mv application-values.yaml "$RUNNER_TEMP/application-values.yaml"
           mv platform-values.yaml "$RUNNER_TEMP/platform-values.yaml"
-          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.12.tgz" -f "$RUNNER_TEMP/application-values.yaml"
-          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.12.tgz" -f "$RUNNER_TEMP/platform-values.yaml"
-          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.12.tgz" \
+          helm lint "$RUNNER_TEMP/aster-0.9.0-rc.13.tgz" -f "$RUNNER_TEMP/application-values.yaml"
+          helm lint "$RUNNER_TEMP/aster-platform-0.9.0-rc.13.tgz" -f "$RUNNER_TEMP/platform-values.yaml"
+          helm template capz-aster "$RUNNER_TEMP/aster-0.9.0-rc.13.tgz" \
             --namespace capz-aster \
             -f "$RUNNER_TEMP/application-values.yaml" \
             > "$RUNNER_TEMP/application-render.yaml"
-          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.12.tgz" \
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.13.tgz" \
             --namespace capz-aster \
             -f "$RUNNER_TEMP/platform-values.yaml" \
             > "$RUNNER_TEMP/platform-render.yaml"
-          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.12.tgz" \
+          helm template capz-aster-platform "$RUNNER_TEMP/aster-platform-0.9.0-rc.13.tgz" \
             --namespace capz-aster \
             -f deploy/platform-values.yaml \
             > "$RUNNER_TEMP/platform-source-render.yaml"
@@ -133,11 +133,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-781ffe3' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.13' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:407f78dd6aa7edf0e1c404d39f65d77fb044523265e00403a90f43cbb3825860"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:458ba75465030106920d85813727489e780ac091659b5733a9f1eac774a849dc"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -161,8 +161,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-781ffe3" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-a6d7535" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:v0.9.0-rc.13" in server
+          assert "image: ghcr.io/willie-yao/aster:v0.9.0-rc.13" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
@@ -170,8 +170,7 @@ jobs:
           assert "CAUSAL_REMEDIATION" not in server
           assert "CAUSAL_REMEDIATION" not in worker
           # The exact feature gates this deployment turns on, in rendered output.
-          # The engine image is bumped independently of the pinned chart, so a
-          # chart default flipping to true, or a new gate the chart renders,
+          # A chart default flipping to true, or a new gate the chart renders,
           # changes this set and fails here rather than switching a feature on
           # unnoticed. A gate the engine reads without the chart rendering an env
           # var is not visible to this check. Dropping set() also rejects a

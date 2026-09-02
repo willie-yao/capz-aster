@@ -1,7 +1,5 @@
 global:
-  imageTag: sha-781ffe3
-image:
-  tag: sha-a6d7535
+  imageTag: v0.9.0-rc.13
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
 persistence:
@@ -13,6 +11,7 @@ ai:
   endpoint: https://api.githubcopilot.com/responses
   model: gpt-5.6-sol
   existingSecret: capz-aster-model
+  githubReadTokenSecretName: capz-aster-model
 fetcher:
   timeout: 6h
   extraEnv:
@@ -28,7 +27,7 @@ agentSandbox:
     runtimeClassName: aster-kata-vm-isolation
     image:
       repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
-      digest: sha256:407f78dd6aa7edf0e1c404d39f65d77fb044523265e00403a90f43cbb3825860
+      digest: sha256:458ba75465030106920d85813727489e780ac091659b5733a9f1eac774a849dc
     workloadServiceAccount:
       name: fix-workload
     modelProvider:
