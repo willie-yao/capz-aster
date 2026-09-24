@@ -11,7 +11,7 @@ data:
       fixRuntime:
         enabled: true
         image:
-          digest: sha256:136d04a6ffe847822fb844ca13bb50d194e3f44d823db7ef62495a8abb33770d
+          digest: sha256:35f748d6fdae494ccd1eea59eae51abbe9e9ff093dcfe0ea66e34b8363e44733
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
           auth:
@@ -43,7 +43,7 @@ data:
               name: capz-aster-smtp
       timeout: 6h
     global:
-      imageTag: v0.10.0
+      imageTag: sha-fbe28d6
     persistence:
       size: 100Gi
       storageClass: capz-aster-rwx
