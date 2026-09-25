@@ -31,8 +31,8 @@ agentSandbox:
     workloadServiceAccount:
       name: fix-workload
     modelProvider:
-      api: responses
-      endpoint: https://api.githubcopilot.com/responses
+      api: chat_completions
+      endpoint: https://api.githubcopilot.com/chat/completions
       model: gpt-6-sol
       reasoningEffort: high
       auth:
