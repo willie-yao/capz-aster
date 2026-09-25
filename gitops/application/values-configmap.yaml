@@ -14,12 +14,12 @@ data:
           digest: sha256:0bd8f40629cc3bb6515580d8f27193125686ca61a7ce9e12354d4555fbd8b591
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
-          api: responses
+          api: chat_completions
           auth:
             existingSecret: capz-aster-fix-model
             tokenKey: AI_TOKEN
             type: bearer
-          endpoint: https://api.githubcopilot.com/responses
+          endpoint: https://api.githubcopilot.com/chat/completions
           model: gpt-6-sol
           reasoningEffort: high
         namespace: capz-aster-sandbox
@@ -163,8 +163,8 @@ data:
                   timeout: 1m
               model_provider:
                 credential_mode: direct
-                api: responses
-                endpoint: https://api.githubcopilot.com/responses
+                api: chat_completions
+                endpoint: https://api.githubcopilot.com/chat/completions
                 model: gpt-6-sol
                 reasoning_effort: high
                 auth:
