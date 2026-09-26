@@ -11,17 +11,16 @@ data:
       fixRuntime:
         enabled: true
         image:
-          digest: sha256:0bd8f40629cc3bb6515580d8f27193125686ca61a7ce9e12354d4555fbd8b591
+          digest: sha256:126b5ac68337025454c1960a372ca9a22d2b638d303564c408f4b7898b356b0a
           repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
         modelProvider:
-          api: chat_completions
+          api: responses
           auth:
             existingSecret: capz-aster-fix-model
             tokenKey: AI_TOKEN
             type: bearer
-          endpoint: https://api.githubcopilot.com/chat/completions
+          endpoint: https://api.githubcopilot.com/responses
           model: gpt-6-sol
-          reasoningEffort: high
         namespace: capz-aster-sandbox
         runtimeClassName: aster-kata-vm-isolation
         workloadServiceAccount:
@@ -44,7 +43,7 @@ data:
               name: capz-aster-smtp
       timeout: 6h
     global:
-      imageTag: sha-cb9b827
+      imageTag: sha-d49fce4
     persistence:
       size: 100Gi
       storageClass: capz-aster-rwx
@@ -163,10 +162,9 @@ data:
                   timeout: 1m
               model_provider:
                 credential_mode: direct
-                api: chat_completions
-                endpoint: https://api.githubcopilot.com/chat/completions
+                api: responses
+                endpoint: https://api.githubcopilot.com/responses
                 model: gpt-6-sol
-                reasoning_effort: high
                 auth:
                   type: bearer
                 public_ca_private_dns: false

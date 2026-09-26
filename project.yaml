@@ -111,10 +111,9 @@ ai:
           timeout: 1m
       model_provider:
         credential_mode: direct
-        api: chat_completions
-        endpoint: https://api.githubcopilot.com/chat/completions
+        api: responses
+        endpoint: https://api.githubcopilot.com/responses
         model: gpt-6-sol
-        reasoning_effort: high
         auth:
           type: bearer
         public_ca_private_dns: false

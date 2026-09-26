@@ -133,15 +133,16 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-cb9b827' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-d49fce4' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:0bd8f40629cc3bb6515580d8f27193125686ca61a7ce9e12354d4555fbd8b591"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:126b5ac68337025454c1960a372ca9a22d2b638d303564c408f4b7898b356b0a"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
-          grep -Fq 'value: "high"' "$application"
+          grep -Fq 'value: "https://api.githubcopilot.com/responses"' "$application"
+          test "$(grep -Fc 'AGENT_SANDBOX_MODEL_PROVIDER_REASONING_EFFORT' "$application")" -eq 0
           test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicy[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*ValidatingAdmissionPolicyBinding[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Role[[:space:]]*$' "$application")" -eq 1
@@ -161,8 +162,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-cb9b827" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-cb9b827" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-d49fce4" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-d49fce4" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
