@@ -20,7 +20,7 @@ data:
             tokenKey: AI_TOKEN
             type: bearer
           endpoint: https://api.githubcopilot.com/responses
-          model: gpt-6-sol
+          model: gpt-6.1-sol
         namespace: capz-aster-sandbox
         runtimeClassName: aster-kata-vm-isolation
         workloadServiceAccount:
@@ -31,7 +31,7 @@ data:
       endpoint: https://api.githubcopilot.com/responses
       existingSecret: capz-aster-model
       githubReadTokenSecretName: capz-aster-model
-      model: gpt-6-sol
+      model: gpt-6.1-sol
     analysisCache:
       generation: capz-aster-v09rc1-sonnet46-20260815
     fetcher:
@@ -164,7 +164,7 @@ data:
                 credential_mode: direct
                 api: responses
                 endpoint: https://api.githubcopilot.com/responses
-                model: gpt-6-sol
+                model: gpt-6.1-sol
                 auth:
                   type: bearer
                 public_ca_private_dns: false

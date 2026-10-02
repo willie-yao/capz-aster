@@ -9,7 +9,7 @@ ai:
   enabled: true
   api: responses
   endpoint: https://api.githubcopilot.com/responses
-  model: gpt-6-sol
+  model: gpt-6.1-sol
   existingSecret: capz-aster-model
   githubReadTokenSecretName: capz-aster-model
 fetcher:
@@ -33,7 +33,7 @@ agentSandbox:
     modelProvider:
       api: responses
       endpoint: https://api.githubcopilot.com/responses
-      model: gpt-6-sol
+      model: gpt-6.1-sol
       auth:
         type: bearer
         existingSecret: capz-aster-fix-model

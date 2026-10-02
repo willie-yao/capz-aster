@@ -113,7 +113,7 @@ ai:
         credential_mode: direct
         api: responses
         endpoint: https://api.githubcopilot.com/responses
-        model: gpt-6-sol
+        model: gpt-6.1-sol
         auth:
           type: bearer
         public_ca_private_dns: false
