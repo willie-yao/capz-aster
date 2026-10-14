@@ -852,7 +852,8 @@ data:
         ## CAPZ Artifact Layout
         Per-build artifacts under `artifacts/clusters/{cluster-name}/`:
         - `machines/{vm}/cloud-init-output.log`, `boot.log`, `kubelet.log`, `containerd.log`, `journal.log`
-        - `Machine/`, `AzureMachine/`, `MachinePool/`, `AzureMachinePool/` (resource YAML dumps)
+        - `Machine/`, `AzureMachine/`, `MachinePool/`, `AzureMachinePool/` (resource YAML dumps; the workload cluster's resources are also under `artifacts/clusters/bootstrap/resources/{namespace}/{Kind}/`)
+        - `Machine` `status.nodeInfo` records the node's `osImage` and `kernelVersion`. Passing runs collect no VM logs, so this is the only OS version record in a passing build.
         - `azure-activity-logs/{cluster-name}.log` (Azure ARM activity log excerpt)
         - `logs/{namespace}/{deployment}/{pod}/manager.log` (controller-manager logs, e.g. `capz-system/capz-controller-manager/...`, `capi-system/capi-controller-manager/...`) - the management cluster's controllers live under the `bootstrap` cluster. To drill a failing resource named X, grep the owning controller's manager.log for "X".
     
@@ -882,6 +883,8 @@ data:
         - preKubeadmCommands failure: binary download 404, package install error, script syntax error.
         - kubeadm init/join failure: version skew, invalid flags, cert issues.
         - Version skew: gallery image kubelet version > target KUBERNETES_VERSION.
+        - Flavors using marketplace images with `version: latest` (for example Flatcar `kinvolk:flatcar-container-linux-corevm-amd64:stable-gen2`) pick up new OS releases with no CAPZ or job change. When a flavor starts failing without a CAPZ change, compare `osImage` between the last passing run and the first failure.
+        - Flatcar 4757+ mounts `/etc` as a `noexec` confext overlay (`Merged extensions into '/sysroot/etc'`). CAPI bootstrap before v1.14.1 runs `ExecStart=/etc/kubeadm.sh` directly, so `kubeadm.service` fails with `Permission denied` and `status=203/EXEC`. CAPI v1.14.1+ runs `/bin/bash /etc/kubeadm.sh`.
     
         ### Image Pull Failures
         - Tag doesn't exist (LTS versions, unreleased), registry unreachable, rate limiting.
