@@ -66,7 +66,7 @@ Per-build artifacts under `artifacts/clusters/{cluster-name}/`:
 - preKubeadmCommands failure: binary download 404, package install error, script syntax error.
 - kubeadm init/join failure: version skew, invalid flags, cert issues.
 - Version skew: gallery image kubelet version > target KUBERNETES_VERSION.
-- Flavors using marketplace images with `version: latest` (for example Flatcar `kinvolk:flatcar-container-linux-corevm-amd64:stable-gen2`) pick up new OS releases with no CAPZ or job change. When a flavor starts failing without a CAPZ change, compare `osImage` between the last passing run and the first failure.
+- Flavors using marketplace images with `version: latest` (for example Flatcar `kinvolk:flatcar-container-linux-corevm-amd64:stable-gen2`) pick up new OS releases with no CAPZ or job change. When such a flavor starts failing, compare the OS version between the last passing run and the first failure, even if CAPZ also changed. A failing node that never registered has no `nodeInfo`; read its version from `machines/<vm>/boot.log` (`Welcome to Flatcar Container Linux by Kinvolk <version>`) or the kernel `Linux version` line.
 - Flatcar 4757+ mounts `/etc` as a `noexec` confext overlay (`Merged extensions into '/sysroot/etc'`). CAPI bootstrap before v1.14.1 runs `ExecStart=/etc/kubeadm.sh` directly, so `kubeadm.service` fails with `Permission denied` and `status=203/EXEC`. CAPI v1.14.1+ runs `/bin/bash /etc/kubeadm.sh`.
 
 ### Image Pull Failures
