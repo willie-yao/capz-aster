@@ -43,7 +43,7 @@ data:
               name: capz-aster-smtp
       timeout: 6h
     global:
-      imageTag: sha-ca064fa
+      imageTag: sha-4d48afa
     persistence:
       size: 100Gi
       storageClass: capz-aster-rwx
