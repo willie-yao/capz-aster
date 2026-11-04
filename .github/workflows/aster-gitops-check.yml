@@ -21,7 +21,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.26.8"
 
       - name: Build pinned Aster CLI
         shell: bash
@@ -29,7 +29,7 @@ jobs:
           GOBIN: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          go install github.com/willie-yao/aster/backend/cmd/aster@v0.12.0-rc.3
+          go install github.com/willie-yao/aster/backend/cmd/aster@2779b0f70ea4910d9fccbeb41f8259611ed954db
 
       - name: Verify consumer checksums
         shell: bash
@@ -133,11 +133,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-d50311c' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-2779b0f' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:ae425451de4a95f2e7cae0eb17debc4193284e1441abcdbf9524c2096e464f05"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:64cbb71181034c2e65fe59a92730407055b36058ea87182c802a2f451ba5c53b"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -160,10 +160,19 @@ jobs:
           assert server.count("- name: BOT_TOKEN") == 1
           assert "key: BOT_TOKEN" in server and "name: capz-aster-auth" in server
           assert "BOT_TOKEN" not in worker
+          for deployment in (server, worker):
+              assert deployment.count("- name: GITHUB_READ_TOKEN\n") == 1
+              assert re.search(
+                  r"- name: GITHUB_READ_TOKEN\n\s+valueFrom:\n\s+secretKeyRef:\n"
+                  r"\s+name: capz-aster-model\n\s+key: GITHUB_READ_TOKEN\n",
+                  deployment,
+              )
+              assert "ASTER_APP_ID" not in deployment
+              assert "ASTER_APP_PRIVATE_KEY" not in deployment
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-d50311c" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-d50311c" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-2779b0f" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-2779b0f" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
