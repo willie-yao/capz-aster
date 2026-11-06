@@ -99,7 +99,6 @@ ai:
     author_email: william2000yao@gmail.com
     labels:
       - ai-proposed-fix-demo
-    critique_retries: 0
     agent_runtime:
       type: agent-sandbox
       max_turns: 30
