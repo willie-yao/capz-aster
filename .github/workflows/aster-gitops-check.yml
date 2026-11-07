@@ -29,7 +29,7 @@ jobs:
           GOBIN: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          go install github.com/willie-yao/aster/backend/cmd/aster@a7bde0d487a4e864971166f521d59fa5dfdec984
+          go install github.com/willie-yao/aster/backend/cmd/aster@a6c7ecd6cd2316ba6624e5c108eff2f78d76a363
 
       - name: Verify consumer checksums
         shell: bash
@@ -133,11 +133,11 @@ jobs:
           test "$(grep -Ec '^kind:[[:space:]]*PersistentVolumeClaim[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Service[[:space:]]*$' "$application")" -eq 1
           test "$(grep -Ec '^kind:[[:space:]]*Deployment[[:space:]]*$' "$application")" -eq 2
-          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-a7bde0d' "$application")" -eq 1
+          test "$(grep -Fc 'image: ghcr.io/willie-yao/aster/remote-fixer:sha-a6c7ecd' "$application")" -eq 1
           grep -Fq 'service.beta.kubernetes.io/azure-allowed-service-tags: AzureFrontDoor.Backend' "$application"
           grep -Fq 'type: LoadBalancer' "$application"
           grep -Fq 'value: "capz-aster-sandbox"' "$application"
-          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:3748e91158c85b5dfc724c3c0d0e0348ca5614071429cb63c4e1ba92ac458aa2"' "$application"
+          grep -Fq 'value: "ghcr.io/willie-yao/aster/agent-sandbox-fix-executor@sha256:4233276d61f2f6f0657e628600d48862d7240755dbdefd8fbd52869370bdb280"' "$application"
           grep -Fq 'value: "direct"' "$application"
           grep -Fq 'value: "bearer"' "$application"
           grep -Fq 'value: "capz-aster-fix-model"' "$application"
@@ -162,8 +162,8 @@ jobs:
           assert "BOT_TOKEN" not in worker
           # Fix generation is server-only, so only the server carries the git-capable
           # fixer image and the Fix model credential.
-          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-a7bde0d" in server
-          assert "image: ghcr.io/willie-yao/aster:sha-a7bde0d" in worker
+          assert "image: ghcr.io/willie-yao/aster/remote-fixer:sha-a6c7ecd" in server
+          assert "image: ghcr.io/willie-yao/aster:sha-a6c7ecd" in worker
           assert "remote-fixer" not in worker
           assert "capz-aster-fix-model" in server
           assert "capz-aster-fix-model" not in worker
