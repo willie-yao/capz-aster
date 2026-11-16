@@ -1,5 +1,5 @@
 global:
-  imageTag: sha-dd8008c
+  imageTag: v0.13.0
 analysisCache:
   generation: capz-aster-v09rc1-sonnet46-20260815
 persistence:
@@ -27,7 +27,7 @@ agentSandbox:
     runtimeClassName: aster-kata-vm-isolation
     image:
       repository: ghcr.io/willie-yao/aster/agent-sandbox-fix-executor
-      digest: sha256:385f8e1e124029c8369b9132a74ccaa1d9ffc948b35b42b42404cf80e2d190ed
+      digest: sha256:ff3fa5d4388aebead5ffdac1de3b5327204d535eeb3753afcba65849238ec166
     workloadServiceAccount:
       name: fix-workload
     modelProvider:
